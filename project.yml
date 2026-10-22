@@ -1,0 +1,112 @@
+name: MealPlanner
+
+options:
+  bundleIdPrefix: inco
+  deploymentTarget:
+    macOS: "26.0"
+  developmentLanguage: ru
+  createIntermediateGroups: true
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: 6S43T3N4UL # same team as Portion and Market Monitor
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  MealKit:
+    path: Packages/MealKit
+
+fileGroups:
+  - README.md
+  - CLAUDE.md
+  - Makefile
+  - project.yml
+  - plan-meal-planner.md
+  - Config
+
+targets:
+  MealPlanner:
+    type: application
+    platform: macOS
+    sources:
+      - path: Apps/MealPlanner
+    settings:
+      base:
+        # File and target names stay free of "&" and spaces; people see the display name.
+        PRODUCT_NAME: MealPlanner
+        PRODUCT_BUNDLE_IDENTIFIER: inco.mealplanner.app
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Meal Planner & Recipes"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle
+        INFOPLIST_FILE: Config/MealPlanner-Info.plist # URL scheme; merged with the generated keys
+        APP_URL_SCHEME: mealplanner
+        ENABLE_APP_SANDBOX: NO
+        CODE_SIGN_ENTITLEMENTS: Config/MealPlanner.entitlements
+        # Color tokens live in Assets.xcassets and are used as Color(.canvas), Color(.textSecondary)…
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: YES
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        Debug:
+          # A separate identity keeps the dev build and its data apart from the installed copy.
+          PRODUCT_BUNDLE_IDENTIFIER: inco.mealplanner.app.debug
+          APP_URL_SCHEME: mealplanner-debug
+    dependencies:
+      - package: MealKit
+        product: MealCore
+      - package: MealKit
+        product: MealStore
+      - target: meal-planner-mcp
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
+
+  meal-planner-mcp:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Apps/MCPServer
+    settings:
+      base:
+        PRODUCT_NAME: meal-planner-mcp
+        PRODUCT_BUNDLE_IDENTIFIER: inco.mealplanner.mcp
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES # lets the tool read its version from Bundle.main
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: MealKit
+        product: MealCore
+      - package: MealKit
+        product: MealMCP
+
+  MealPlannerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Apps/MealPlannerTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: inco.mealplanner.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: MealPlanner
+
+schemes:
+  MealPlanner:
+    build:
+      targets:
+        MealPlanner: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MealPlannerTests
