@@ -33,6 +33,7 @@ struct RecipesScreen: View {
     @State private var sortOrder = [RecipeOrder(.title)]
     @State private var showsTrash = false
     @State private var importsWithClaude = false
+    @State private var importsLink = false
     @State private var problem: String?
 
     init(database: AppDatabase, categoryID: RecipeCategory.ID?) {
@@ -128,6 +129,7 @@ struct RecipesScreen: View {
                 sortMenu
                 Button("Новый рецепт", systemImage: "plus", action: addRecipe)
                 Menu("Ещё", systemImage: "ellipsis.circle") {
+                    Button("Импорт по ссылке…", systemImage: "link") { importsLink = true }
                     Button("Импорт по ссылке с Claude…", systemImage: "sparkles") { importsWithClaude = true }
                     Button("Перенести из Notion с Claude") {
                         model.askClaude(ClaudeRequest.migrateFromNotion("Recipes"))
@@ -138,6 +140,14 @@ struct RecipesScreen: View {
             }
         }
         .sheet(isPresented: $showsTrash) { TrashSheet(database: database) }
+        .sheet(isPresented: $importsLink) {
+            LinkImportSheet(database: database, categoryID: categoryID) { id in
+                open(id)
+            } withClaude: { link in
+                let category = categories.first { $0.id == categoryID }?.name
+                model.askClaude(ClaudeRequest.importRecipe(url: link, category: category))
+            }
+        }
         .sheet(isPresented: $importsWithClaude) {
             ClaudeImportSheet(categories: categories, categoryID: categoryID) { request in
                 model.askClaude(request)
