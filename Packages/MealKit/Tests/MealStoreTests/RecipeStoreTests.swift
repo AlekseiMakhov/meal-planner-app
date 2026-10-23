@@ -246,6 +246,30 @@ struct CategoryStoreTests {
         #expect(throws: StoreError.self) { try fixture.database.save(taken) }
     }
 
+    @Test func recipesGoIntoACategoryAndOutKeepingTheirOthers() throws {
+        let fixture = try Fixture()
+        let soups = try fixture.database.newCategory(named: "Супы")
+        let quick = try fixture.database.newCategory(named: "Быстрые")
+        let borscht = try fixture.addRecipe("Борщ", categories: [soups.id])
+        let porridge = try fixture.addRecipe("Каша")
+
+        try fixture.database.setCategory(quick.id, isOn: true, recipeIDs: [borscht.recipe.id, porridge.recipe.id])
+        try fixture.database.setCategory(quick.id, isOn: true, recipeIDs: [porridge.recipe.id])
+        #expect(try fixture.database.recipe(id: borscht.recipe.id)?.categoryIDs == [soups.id, quick.id])
+        #expect(try fixture.titles(RecipeQuery(categoryIDs: [quick.id])) == ["Борщ", "Каша"])
+        let cards = try fixture.database.recipeGallery(RecipeGalleryQuery(), limit: 10).rows
+            .filter { $0.card.id == borscht.recipe.id }
+        #expect(
+            cards.map(\.card.categoryIDs) == [[soups.id, quick.id], [soups.id, quick.id]], "a card in each group")
+
+        try fixture.database.setCategory(soups.id, isOn: false, recipeIDs: [borscht.recipe.id])
+        #expect(try fixture.database.recipe(id: borscht.recipe.id)?.categoryIDs == [quick.id])
+        try fixture.database.deleteCategory(id: soups.id)
+        #expect(throws: StoreError("Категории больше нет.")) {
+            try fixture.database.setCategory(soups.id, isOn: true, recipeIDs: [porridge.recipe.id])
+        }
+    }
+
     @Test func deletingACategoryKeepsItsRecipes() throws {
         let fixture = try Fixture()
         let soups = try fixture.database.newCategory(named: "Супы")

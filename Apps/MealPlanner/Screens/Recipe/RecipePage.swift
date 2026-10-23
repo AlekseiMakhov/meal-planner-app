@@ -22,9 +22,12 @@ struct RecipePage: View {
     @State private var startedEditing = false
     @State private var confirmsTrash = false
     @State private var pantry: [Product.ID: PantryItem] = [:]
+    /// The recipe while «Новая категория…» asks for a name.
+    @State private var categorizing: [Recipe.ID]?
 
     var body: some View {
-        Group {
+        // The page and its editor cross-fade in place.
+        ZStack {
             if let draft = Binding($draft) {
                 RecipeEditor(
                     database: database, details: draft, categories: categories, mealTypes: mealTypes, problem: problem)
@@ -32,10 +35,12 @@ struct RecipePage: View {
                 RecipeView(
                     details: details,
                     servings: Binding(get: { servings ?? details.recipe.servings }, set: { servings = $0 }),
-                    categories: categories, mealTypes: mealTypes, images: database.images, pantry: pantry
-                ) { line in
-                    toShopping(line, of: details)
-                }
+                    categories: categories, mealTypes: mealTypes, images: database.images, pantry: pantry,
+                    toShopping: { line in toShopping(line, of: details) },
+                    setCategory: { id, isOn in
+                        run { try database.setCategory(id, isOn: isOn, recipeIDs: [details.recipe.id]) }
+                    },
+                    newCategory: { categorizing = [details.recipe.id] })
             } else if isGone {
                 ContentUnavailableView(
                     "Рецепта больше нет", systemImage: "trash", description: Text("Он в корзине или удалён."))
@@ -50,7 +55,9 @@ struct RecipePage: View {
         .task(id: route.id) {
             do {
                 for try await value in database.observeRecipe(id: route.id) {
-                    details = value
+                    // A change made elsewhere — a category from the menu, Claude's edit — settles in; the first
+                    // value just shows.
+                    withAnimation(details == nil ? nil : Motion.layout) { details = value }
                     isGone = value == nil || value?.recipe.deletedAt != nil
                     if route.startsEditing, !startedEditing, let value {
                         startedEditing = true
@@ -68,6 +75,16 @@ struct RecipePage: View {
             save()
         }
         .onDisappear { save() }
+        .newCategoryAlert(for: $categorizing, database: database, problem: $problem)
+        .alert(
+            "Не получилось",
+            isPresented: Binding(get: { draft == nil && problem != nil }, set: { if !$0 { problem = nil } }),
+            presenting: problem
+        ) { _ in
+            Button("Понятно") {}
+        } message: { problem in
+            Text(problem)
+        }
         .confirmationDialog(
             "Переместить «\(details?.recipe.title ?? "")» в корзину?", isPresented: $confirmsTrash
         ) {
@@ -114,8 +131,12 @@ struct RecipePage: View {
     }
 
     private func watchPantry() async {
+        var isFirst = true
         do {
-            for try await items in database.observePantryItems(for: productIDs) { pantry = items }
+            for try await items in database.observePantryItems(for: productIDs) {
+                withAnimation(isFirst ? nil : Motion.layout) { pantry = items }
+                isFirst = false
+            }
         } catch {
             problem = String(describing: error)
         }
@@ -145,7 +166,7 @@ struct RecipePage: View {
     }
 
     private func edit(_ details: RecipeDetails) {
-        draft = details
+        withAnimation(Motion.swap) { draft = details }
         savedDraft = details
         problem = nil
     }
@@ -165,7 +186,7 @@ struct RecipePage: View {
     private func finishEditing() {
         save()
         if problem == nil {
-            draft = nil
+            withAnimation(Motion.swap) { draft = nil }
             savedDraft = nil
             servings = nil
         }

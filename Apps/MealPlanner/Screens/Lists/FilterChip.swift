@@ -27,6 +27,7 @@ struct FilterChip<Options: View>: View {
                 .foregroundStyle(Color(.textSecondary))
         }
         .chipBackground()
+        .popTransition()
     }
 }
 
@@ -51,6 +52,7 @@ struct ListFooter: View {
                 .font(.callout)
                 .foregroundStyle(Color(.textSecondary))
                 .monospacedDigit()
+                .contentTransition(.numericText())
             Spacer()
         }
         .padding(.horizontal, 12)

@@ -265,7 +265,7 @@ struct StepsEditor: View {
                     TextField("Что сделать", text: $step.text, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                     Button("Удалить шаг", systemImage: "minus.circle") {
-                        steps.removeAll { $0.id == step.id }
+                        withAnimation(Motion.layout) { steps.removeAll { $0.id == step.id } }
                     }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
@@ -275,8 +275,10 @@ struct StepsEditor: View {
                     move(items.first, before: step.id)
                 }
             }
-            Button("Добавить шаг", systemImage: "plus") { steps.append(RecipeStep(text: "")) }
-                .buttonStyle(.borderless)
+            Button("Добавить шаг", systemImage: "plus") {
+                withAnimation(Motion.layout) { steps.append(RecipeStep(text: "")) }
+            }
+            .buttonStyle(.borderless)
         }
     }
 
@@ -285,6 +287,6 @@ struct StepsEditor: View {
         guard let dragged, let id = UUID(uuidString: dragged), id != target,
             let from = steps.firstIndex(where: { $0.id == id }), let to = steps.firstIndex(where: { $0.id == target })
         else { return }
-        steps.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to)
+        withAnimation(Motion.layout) { steps.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to) }
     }
 }

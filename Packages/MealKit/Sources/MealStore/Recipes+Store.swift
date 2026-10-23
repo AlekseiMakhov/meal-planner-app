@@ -228,6 +228,25 @@ extension AppDatabase {
         }
     }
 
+    /// Puts the recipes into the category, or takes them out of it; their other categories stay. Without
+    /// saving the recipes: the menus of the lists and a recipe dropped onto the sidebar do this.
+    public func setCategory(_ categoryID: RecipeCategory.ID, isOn: Bool, recipeIDs: [Recipe.ID]) throws {
+        try writer.write { db in
+            guard try CategoryRecord.exists(db, key: categoryID) else { throw StoreError("Категории больше нет.") }
+            for id in Set(recipeIDs) where try RecipeRecord.exists(db, key: id) {
+                if isOn {
+                    try db.execute(
+                        sql: "INSERT OR IGNORE INTO recipe_category (recipeId, categoryId) VALUES (?, ?)",
+                        arguments: [id, categoryID])
+                } else {
+                    try db.execute(
+                        sql: "DELETE FROM recipe_category WHERE recipeId = ? AND categoryId = ?",
+                        arguments: [id, categoryID])
+                }
+            }
+        }
+    }
+
     /// A copy of the recipe with its own photo, titled «… (копия)».
     public func duplicateRecipe(id: Recipe.ID) throws -> RecipeDetails {
         guard let original = try recipe(id: id) else { throw StoreError("Рецепта больше нет.") }

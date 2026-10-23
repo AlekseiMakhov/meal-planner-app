@@ -9,7 +9,7 @@ struct PlannerScreen: View {
     let database: AppDatabase
 
     @Environment(AppModel.self) private var model
-    @AppStorage("planner.showsLibrary") private var showsLibrary = true
+    @AppStorage("planner.showsLibrary") private var showsLibrary = false
     @AppStorage("planner.perPerson") private var showsPerPerson = true
     @AppStorage("planner.total") private var showsTotal = false
     @AppStorage("planner.macros") private var showsMacros = true
@@ -26,7 +26,9 @@ struct PlannerScreen: View {
     @State private var notice: String?
     @State private var problem: String?
 
-    private static let labelWidth: CGFloat = 104
+    private static let spacing: CGFloat = 8
+    /// The narrowest a day gets before the week scrolls sideways: room for a dish's name on two or three lines.
+    private static let minColumn: CGFloat = 88
 
     /// `plan` is shown until the database answers: for previews.
     init(database: AppDatabase, plan: WeekPlan? = nil) {
@@ -93,12 +95,17 @@ struct PlannerScreen: View {
         .navigationTitle("Неделя \(weekStart.weekNumber) · \(Formatting.week(weekStart))")
         .inspector(isPresented: $showsLibrary) {
             PlannerLibrary(database: database, mealTypes: plan?.mealTypes ?? [])
-                .inspectorColumnWidth(min: 250, ideal: 290, max: 400)
+                .inspectorColumnWidth(min: 230, ideal: 250, max: 380)
         }
         .task(id: weekStart) {
             selection = []
             do {
-                for try await plan in database.observeWeekPlan(starting: weekStart) { self.plan = plan }
+                for try await plan in database.observeWeekPlan(starting: weekStart) {
+                    // Dishes added, moved or taken off settle into place; another week's dishes cross-fade in
+                    // the same cells as its dates roll over.
+                    let animation = self.plan?.start == plan.start ? Motion.layout : Motion.swap
+                    withAnimation(self.plan == nil ? nil : animation) { self.plan = plan }
+                }
             } catch {
                 problem = String(describing: error)
             }
@@ -154,14 +161,13 @@ struct PlannerScreen: View {
 
     // MARK: - Grid
 
+    /// The days share the width; a meal's name heads its row, so the week fits beside the list of recipes too.
     private func grid(_ plan: WeekPlan, width: CGFloat) -> some View {
-        let column = max(112, (width - 32 - Self.labelWidth - 7 * 8) / 7)
+        let column = max(Self.minColumn, ((width - 32 - 6 * Self.spacing) / 7).rounded(.down))
         let today = Day.today()
         let supply = plan.supply(from: max(today, plan.start))
-        return Grid(alignment: .topLeading, horizontalSpacing: 8, verticalSpacing: 8) {
+        return Grid(alignment: .topLeading, horizontalSpacing: Self.spacing, verticalSpacing: 6) {
             GridRow {
-                newMealButton
-                    .frame(width: Self.labelWidth, alignment: .leading)
                 ForEach(plan.days, id: \.self) { day in
                     DayHeader(day: day, isToday: day == today)
                         .frame(width: column)
@@ -169,14 +175,13 @@ struct PlannerScreen: View {
             }
             ForEach(plan.mealTypes) { meal in
                 GridRow {
-                    mealLabel(meal)
-                        .frame(width: Self.labelWidth, alignment: .leading)
-                        .padding(.top, 6)
-                    ForEach(plan.days, id: \.self) { day in
-                        if collapsed.contains(meal.id) {
-                            collapsedCell(plan.entries(on: day, meal: meal.id).count)
-                                .frame(width: column)
-                        } else {
+                    mealLabel(meal, dishes: plan.entries.filter { $0.mealTypeID == meal.id }.count)
+                        .gridCellColumns(7)
+                        .padding(.top, 8)
+                }
+                if !collapsed.contains(meal.id) {
+                    GridRow {
+                        ForEach(plan.days, id: \.self) { day in
                             PlanCell(
                                 day: day, meal: meal, entries: plan.entries(on: day, meal: meal.id), plan: plan,
                                 shortEntries: supply.shortEntries, selection: selection, width: column,
@@ -185,20 +190,27 @@ struct PlannerScreen: View {
                     }
                 }
             }
+            GridRow {
+                newMealButton
+                    .gridCellColumns(7)
+                    .padding(.vertical, 4)
+            }
             Divider()
                 .gridCellUnsizedAxes(.horizontal)
             GridRow {
-                VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("Итого")
                         .font(.headline)
                     if let average = plan.averageDay {
-                        Text("в среднем \(Formatting.number(average.perPerson.kcal, digits: 0)) ккал")
+                        Text("в среднем \(Formatting.number(average.perPerson.kcal, digits: 0)) ккал на человека")
                             .font(.caption)
                             .foregroundStyle(Color(.textSecondary))
-                            .help("На человека за день, по дням, где что-то запланировано")
+                            .help("За день, по дням, где что-то запланировано")
                     }
                 }
-                .frame(width: Self.labelWidth, alignment: .leading)
+                .gridCellColumns(7)
+            }
+            GridRow {
                 ForEach(plan.days, id: \.self) { day in
                     DayTotals(
                         nutrition: plan.nutrition(on: day), showsPerPerson: showsPerPerson, showsTotal: showsTotal,
@@ -210,7 +222,8 @@ struct PlannerScreen: View {
         }
     }
 
-    private func mealLabel(_ meal: MealType) -> some View {
+    /// A meal's name over its row; folded, it says how many dishes the week has for it.
+    private func mealLabel(_ meal: MealType, dishes: Int) -> some View {
         HStack(spacing: 6) {
             Button {
                 toggleCollapsed(meal.id)
@@ -223,6 +236,11 @@ struct PlannerScreen: View {
             .foregroundStyle(Color(.textSecondary))
             .help(collapsed.contains(meal.id) ? "Развернуть" : "Свернуть")
             TagView(name: meal.name, color: meal.color)
+            if collapsed.contains(meal.id) {
+                Text(dishes == 0 ? "нет блюд" : Formatting.count(dishes, "блюдо", "блюда", "блюд"))
+                    .font(.caption)
+                    .foregroundStyle(Color(.textSecondary))
+            }
         }
         .contextMenu {
             Button("Переименовать…") {
@@ -254,14 +272,6 @@ struct PlannerScreen: View {
         .help("Добавить свой приём пищи: «Второй завтрак», «Полдник»")
     }
 
-    private func collapsedCell(_ count: Int) -> some View {
-        Text(count == 0 ? "—" : Formatting.count(count, "блюдо", "блюда", "блюд"))
-            .font(.caption)
-            .foregroundStyle(Color(.textSecondary))
-            .frame(maxWidth: .infinity, minHeight: 24)
-            .background(Color(.surface), in: RoundedRectangle(cornerRadius: 6))
-    }
-
     @ViewBuilder private var noticeView: some View {
         if let notice {
             Text(notice)
@@ -269,7 +279,7 @@ struct PlannerScreen: View {
                 .padding(.vertical, 8)
                 .background(.regularMaterial, in: Capsule())
                 .padding(.bottom, 16)
-                .transition(.opacity)
+                .noticeTransition()
         }
     }
 
@@ -297,7 +307,10 @@ struct PlannerScreen: View {
                 Toggle("Всего, на все порции", isOn: $showsTotal)
                 Toggle("Белки, жиры, углеводы", isOn: $showsMacros)
             }
-            Button("Рецепты", systemImage: "sidebar.trailing") { showsLibrary.toggle() }
+            Button("Рецепты", systemImage: "sidebar.trailing") {
+                withAnimation(Motion.layout) { showsLibrary.toggle() }
+            }
+            .help("Рецепты, которые можно перетащить в неделю")
         }
     }
 
@@ -437,14 +450,14 @@ struct PlannerScreen: View {
     private func toggleCollapsed(_ id: MealType.ID) {
         var set = collapsed
         if set.contains(id) { set.remove(id) } else { set.insert(id) }
-        collapsedText = set.sorted().map(String.init).joined(separator: ",")
+        withAnimation(Motion.layout) { collapsedText = set.sorted().map(String.init).joined(separator: ",") }
     }
 
     private func show(_ text: String) {
-        withAnimation { notice = text }
+        withAnimation(Motion.pop) { notice = text }
         Task {
             try? await Task.sleep(for: .seconds(3))
-            withAnimation { if notice == text { notice = nil } }
+            withAnimation(Motion.pop) { if notice == text { notice = nil } }
         }
     }
 
@@ -468,6 +481,7 @@ private struct DayHeader: View {
                 .foregroundStyle(Color(.textSecondary))
             Text("\(day.day)")
                 .fontWeight(.semibold)
+                .contentTransition(.numericText(value: Double(day.day)))
                 .foregroundStyle(isToday ? Color.white : Color(.textPrimary))
                 .padding(.horizontal, isToday ? 6 : 0)
                 .background {
@@ -512,6 +526,7 @@ private struct DayTotals: View {
             Text("\(nutrition.uncounted > 0 ? "≈ " : "")\(Formatting.number(value.kcal, digits: 0)) ккал")
                 .font(.callout.weight(.semibold))
                 .monospacedDigit()
+                .contentTransition(.numericText(value: value.kcal))
             if showsMacros {
                 Text(
                     "Б \(Formatting.number(value.protein, digits: 0)) · Ж \(Formatting.number(value.fat, digits: 0)) · У \(Formatting.number(value.carbs, digits: 0))"

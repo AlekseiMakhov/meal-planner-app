@@ -52,6 +52,8 @@ struct ShoppingScreen: View {
             Divider()
             ListFooter(shown: list.rows.count, total: list.total, noun: ("позиция", "позиции", "позиций"))
         }
+        // Ticked, added or taken off, an item moves to its new place instead of jumping there.
+        .animation(Motion.layout, value: list.changes)
         .searchable(text: $searchText, placement: .toolbar, prompt: "Что купить")
         .task(id: searchText) {
             do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
@@ -547,6 +549,7 @@ struct ShoppingFilterBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .animation(Motion.pop, value: query)
     }
 
     @ViewBuilder private var checkedChoices: some View {

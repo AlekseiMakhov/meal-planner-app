@@ -61,11 +61,7 @@ struct PlannerLibrary: View {
             .controlSize(.small)
             List(list.rows) { card in
                 LibraryRow(card: card, images: images)
-                    .draggable(PlanDragItem.recipe(card.id)) {
-                        Text(card.title)
-                            .padding(8)
-                            .background(Color(.card), in: RoundedRectangle(cornerRadius: 6))
-                    }
+                    .draggable(PlanDragItem.recipe(card.id)) { RecipeDragPreview(title: card.title) }
                     .onAppear { list.rowAppeared(card.id) }
             }
             .listStyle(.plain)

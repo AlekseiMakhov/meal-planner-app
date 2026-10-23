@@ -37,6 +37,7 @@ struct RangeChip: View {
             .foregroundStyle(Color(.textSecondary))
         }
         .chipBackground()
+        .popTransition()
     }
 
     private var value: String {

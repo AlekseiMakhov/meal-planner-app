@@ -11,7 +11,13 @@ struct MealPlannerApp: App {
             MainWindow()
                 .environment(model)
         }
-        .defaultSize(width: 1200, height: 780)
+        .defaultWindowPlacement { _, context in
+            // Most of the screen, so the week fits with the recipes beside it; a wide display gets a roomy window,
+            // not a full one.
+            let screen = context.defaultDisplay.visibleRect.size
+            let size = CGSize(width: min(screen.width * 0.92, 1500), height: min(screen.height * 0.92, 960))
+            return WindowPlacement(.center, size: size)
+        }
         .commands {
             CommandGroup(after: .textEditing) {
                 Button("Быстрый поиск…") { model.showsQuickSearch = true }

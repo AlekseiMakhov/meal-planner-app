@@ -34,6 +34,7 @@ struct TrashSheet: View {
                     Button("Удалить навсегда", role: .destructive) { run { try database.deleteRecipe(id: recipe.id) } }
                 }
             }
+            .animation(Motion.layout, value: recipes.map(\.id))
             .overlay {
                 if recipes.isEmpty {
                     ContentUnavailableView("Корзина пуста", systemImage: "trash")

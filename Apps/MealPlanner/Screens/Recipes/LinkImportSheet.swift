@@ -70,6 +70,7 @@ struct LinkImportSheet: View {
         }
         .padding(20)
         .frame(width: 680, height: 620)
+        .animation(Motion.swap, value: phase)
         .onAppear {
             if let copied = NSPasteboard.general.string(forType: .string), ClaudeImportSheet.webLink(copied) != nil {
                 link = copied.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -77,24 +78,27 @@ struct LinkImportSheet: View {
         }
     }
 
-    @ViewBuilder private var content: some View {
-        switch phase {
-        case .idle:
-            Text(
-                "Большинство сайтов с рецептами описывают их разметкой schema.org: название, порции, ингредиенты, шаги и фото. Приложение прочитает её само; если разметки нет — поможет Claude."
-            )
-            .foregroundStyle(Color(.textSecondary))
-            Spacer()
-        case .loading, .saving:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .notFound:
-            ContentUnavailableView(
-                "На странице нет разметки рецепта", systemImage: "doc.questionmark",
-                description: Text("Claude прочитает её как человек и заведёт рецепт сам."))
-        case .ready:
-            preview
+    /// The phases cross-fade in one place.
+    private var content: some View {
+        ZStack(alignment: .topLeading) {
+            switch phase {
+            case .idle:
+                Text(
+                    "Большинство сайтов с рецептами описывают их разметкой schema.org: название, порции, ингредиенты, шаги и фото. Приложение прочитает её само; если разметки нет — поможет Claude."
+                )
+                .foregroundStyle(Color(.textSecondary))
+            case .loading, .saving:
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .notFound:
+                ContentUnavailableView(
+                    "На странице нет разметки рецепта", systemImage: "doc.questionmark",
+                    description: Text("Claude прочитает её как человек и заведёт рецепт сам."))
+            case .ready:
+                preview
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var preview: some View {

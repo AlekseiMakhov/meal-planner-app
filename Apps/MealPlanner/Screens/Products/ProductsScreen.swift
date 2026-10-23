@@ -146,6 +146,7 @@ struct ProductsScreen: View {
             }
             .width(min: 70, ideal: 90)
         }
+        .animation(Motion.layout, value: list.changes)
         .contextMenu(forSelectionType: Product.ID.self) { ids in
             let chosen = list.rows.filter { ids.contains($0.id) }
             if !chosen.isEmpty {

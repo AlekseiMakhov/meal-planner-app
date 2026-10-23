@@ -34,6 +34,8 @@ struct RecipesScreen: View {
     @State private var showsTrash = false
     @State private var importsWithClaude = false
     @State private var importsLink = false
+    /// The recipes «Новая категория…» was chosen for.
+    @State private var categorizing: [Recipe.ID]?
     @State private var problem: String?
 
     init(database: AppDatabase, categoryID: RecipeCategory.ID?) {
@@ -52,11 +54,11 @@ struct RecipesScreen: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: slidingPath) {
             list
                 .navigationDestination(for: RecipeRoute.self) { route in
                     RecipePage(database: database, route: route, categories: categories, mealTypes: mealTypes) {
-                        path.removeAll { $0.id == route.id }
+                        withAnimation(Motion.layout) { path.removeAll { $0.id == route.id } }
                     }
                 }
         }
@@ -102,16 +104,17 @@ struct RecipesScreen: View {
         VStack(spacing: 0) {
             RecipeFilterBar(database: database, query: $query, categories: categories, mealTypes: mealTypes)
             Divider()
-            Group {
+            ZStack {
                 switch mode {
                 case .gallery:
                     RecipeGallery(
                         list: gallery, groups: groups, categories: categories, collapsed: $collapsed,
-                        images: database.images, open: open)
+                        images: database.images, actions: actions)
                 case .table:
-                    RecipeTable(list: table, categories: categories, sortOrder: $sortOrder, open: open)
+                    RecipeTable(list: table, categories: categories, sortOrder: $sortOrder, actions: actions)
                 }
             }
+            .animation(Motion.swap, value: mode)
             .overlay { emptyState }
             Divider()
             // The gallery repeats a recipe in each of its categories; the table counts each recipe once.
@@ -144,6 +147,7 @@ struct RecipesScreen: View {
                 }
             }
         }
+        .newCategoryAlert(for: $categorizing, database: database, problem: $problem)
         .sheet(isPresented: $showsTrash) { TrashSheet(database: database) }
         .sheet(isPresented: $importsLink) {
             LinkImportSheet(database: database, categoryID: categoryID) { id in
@@ -167,7 +171,17 @@ struct RecipesScreen: View {
 
     @ViewBuilder private var emptyState: some View {
         if table.isLoaded, table.total == 0 {
-            if query.text.isEmpty, query.filterCount == 0 {
+            if let categoryID, query.text.isEmpty, query.filterCount == 1, query.categoryIDs == [categoryID] {
+                ContentUnavailableView {
+                    Label("В категории пока нет рецептов", systemImage: "folder")
+                } description: {
+                    Text(
+                        "Заведите здесь новый рецепт или добавьте готовые: «Категории» в меню рецепта по правому клику, или перетащите карточку на категорию в боковой панели."
+                    )
+                } actions: {
+                    Button("Новый рецепт", action: addRecipe)
+                }
+            } else if query.text.isEmpty, query.filterCount == 0 {
                 ContentUnavailableView {
                     Label("Рецептов пока нет", systemImage: "book.closed")
                 } description: {
@@ -228,15 +242,52 @@ struct RecipesScreen: View {
         }
     }
 
+    /// A recipe's page slides in over the list and back out, the back button included; ⌘K and the sidebar jump
+    /// straight to where they go.
+    private var slidingPath: Binding<[RecipeRoute]> {
+        Binding {
+            path
+        } set: { routes in
+            withAnimation(Motion.layout) { path = routes }
+        }
+    }
+
     private func open(_ id: Recipe.ID) {
-        path.append(RecipeRoute(id: id))
+        withAnimation(Motion.layout) { path.append(RecipeRoute(id: id)) }
+    }
+
+    /// The recipe menu of the gallery and the table.
+    private var actions: RecipeActions {
+        RecipeActions(
+            open: open,
+            setCategory: { category, isOn, recipes in
+                run { try database.setCategory(category, isOn: isOn, recipeIDs: recipes) }
+            },
+            newCategory: { categorizing = $0 },
+            setFavorite: { isFavorite, recipes in
+                run { for id in recipes { try database.setFavorite(isFavorite, recipeID: id) } }
+            },
+            duplicate: { id in
+                run { _ = try database.duplicateRecipe(id: id) }
+            },
+            trash: { recipes in
+                run { for id in recipes { try database.moveRecipeToTrash(id: id) } }
+            })
+    }
+
+    private func run(_ action: () throws -> Void) {
+        do {
+            try action()
+        } catch {
+            problem = String(describing: error)
+        }
     }
 
     /// A new recipe in the category the list shows, opened for editing.
     private func addRecipe() {
         do {
             let details = try database.newRecipe(in: query.categoryIDs.count == 1 ? Array(query.categoryIDs) : [])
-            path.append(RecipeRoute(id: details.recipe.id, startsEditing: true))
+            withAnimation(Motion.layout) { path.append(RecipeRoute(id: details.recipe.id, startsEditing: true)) }
         } catch {
             problem = String(describing: error)
         }

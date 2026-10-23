@@ -10,7 +10,8 @@ extension UTType {
     static let mealPlanItem = UTType(exportedAs: "inco.mealplanner.plan-item")
 }
 
-/// What is dragged onto the week: a recipe from the list, or a dish already in the menu.
+/// What is dragged: a recipe from a list — onto the week, or onto a category in the sidebar — or a dish already in
+/// the menu.
 enum PlanDragItem: Codable, Hashable, Transferable {
     case recipe(Recipe.ID)
     case entry(PlanEntry.ID)
@@ -48,19 +49,25 @@ struct PlanCell: View {
     @State private var isTargeted = false
     @State private var isHovered = false
 
+    /// A narrow day: the dishes go without their photos, so the names keep the room.
+    private var isCompact: Bool {
+        width < 124
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             ForEach(entries) { entry in
                 PlanCard(
                     entry: entry, recipe: entry.recipeID.flatMap { plan.recipes[$0] },
-                    isShort: shortEntries.contains(entry.id), isSelected: selection.contains(entry.id), images: images
+                    isShort: shortEntries.contains(entry.id), isSelected: selection.contains(entry.id),
+                    isCompact: isCompact, images: images
                 )
                 .onTapGesture(count: 2) { actions.open(entry) }
                 .onTapGesture { actions.select(entry.id, NSEvent.modifierFlags.contains(.command)) }
                 .draggable(PlanDragItem.entry(entry.id)) {
                     PlanCard(
                         entry: entry, recipe: entry.recipeID.flatMap { plan.recipes[$0] }, isShort: false,
-                        isSelected: false, images: images
+                        isSelected: false, isCompact: isCompact, images: images
                     )
                     .frame(width: width - 12)
                 }
@@ -94,6 +101,8 @@ struct PlanCell: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(isTargeted ? Color.accentColor : Color(.hairline))
         )
+        .animation(Motion.hover, value: isTargeted)
+        .animation(Motion.hover, value: isHovered)
         .onHover { isHovered = $0 }
         .dropDestination(for: PlanDragItem.self) { items, _ in
             actions.drop(items, day, meal.id, nil)
@@ -131,19 +140,21 @@ struct PlanCell: View {
     }
 }
 
-/// A dish: its photo, name, servings, a dot when the pantry no longer covers it, and a tick once cooked.
+/// A dish: its photo, name, servings, a dot when the pantry no longer covers it, and a tick once cooked. A compact
+/// card leaves the photo out.
 struct PlanCard: View {
     let entry: PlanEntry
     let recipe: RecipeDetails?
     let isShort: Bool
     let isSelected: Bool
+    var isCompact = false
     let images: ImageStore
 
     @State private var image: NSImage?
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
-            if recipe?.recipe.photo != nil {
+            if recipe?.recipe.photo != nil, !isCompact {
                 Color(.surfaceRaised)
                     .frame(width: 28, height: 28)
                     .overlay {
@@ -160,7 +171,7 @@ struct PlanCard: View {
                     .font(.callout.weight(.medium))
                     .italic(entry.recipeID == nil)
                     .foregroundStyle(Color(.textPrimary))
-                    .lineLimit(2)
+                    .lineLimit(isCompact ? 3 : 2)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 4) {
                     if entry.recipeID != nil {
@@ -191,6 +202,7 @@ struct PlanCard: View {
                 .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
         )
         .opacity(entry.isCooked ? 0.65 : 1)
+        .animation(Motion.hover, value: isSelected)
         .contentShape(RoundedRectangle(cornerRadius: 6))
         .task(id: recipe?.recipe.photo) {
             guard let photo = recipe?.recipe.photo else {

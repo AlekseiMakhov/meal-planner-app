@@ -29,7 +29,7 @@ struct IngredientsEditor: View {
             }
             IngredientInput(database: database) { ingredient, product in
                 details.products[product.id] = product
-                details.ingredients.append(ingredient)
+                withAnimation(Motion.layout) { details.ingredients.append(ingredient) }
             }
         }
     }
@@ -64,7 +64,7 @@ struct IngredientsEditor: View {
                 .toggleStyle(.checkbox)
                 .fixedSize()
             Button("Убрать ингредиент", systemImage: "minus.circle") {
-                details.ingredients.removeAll { $0.id == line.id }
+                withAnimation(Motion.layout) { details.ingredients.removeAll { $0.id == line.id } }
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
@@ -77,7 +77,9 @@ struct IngredientsEditor: View {
             let from = details.ingredients.firstIndex(where: { $0.id == id }),
             let to = details.ingredients.firstIndex(where: { $0.id == target })
         else { return }
-        details.ingredients.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to)
+        withAnimation(Motion.layout) {
+            details.ingredients.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to)
+        }
     }
 }
 

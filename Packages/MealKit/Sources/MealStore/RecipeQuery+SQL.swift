@@ -27,7 +27,11 @@ enum RecipeListSQL {
             literal: "SELECT rc.categoryId AS groupId, " + columns + " " + source + " ORDER BY " + order
                 + " LIMIT \(limit)"
         ).fetchAll(db)
-        let items = rows.map { GalleryItem(categoryID: $0["groupId"], card: card($0)) }
+        var items = rows.map { GalleryItem(categoryID: $0["groupId"], card: card($0)) }
+        let categories = try categoryIDs(db, recipes: Array(Set(items.map(\.card.id))))
+        for index in items.indices {
+            items[index].card.categoryIDs = categories[items[index].card.id] ?? []
+        }
         let total = try SQLRequest<Int>(literal: "SELECT COUNT(*) " + source).fetchOne(db) ?? 0
         return ListPage(rows: items, total: total)
     }

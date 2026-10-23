@@ -14,6 +14,9 @@ public final class PagedList<Query: Hashable & Sendable, Row: Identifiable & Has
     public private(set) var failure: String?
     /// Grows with every new query; a view scrolls back to the top when it changes.
     public private(set) var generation = 0
+    /// Grows when the rows change in place: the database changed under the same query and the same blocks. A view
+    /// animates these changes, and not a new query's first rows or the next block coming in.
+    public private(set) var changes = 0
 
     public var query: Query {
         didSet {
@@ -73,9 +76,14 @@ public final class PagedList<Query: Hashable & Sendable, Row: Identifiable & Has
         task?.cancel()
         let observation = observe(query, limit)
         task = Task { [weak self] in
+            var isFirstPage = true
             do {
                 for try await page in observation {
                     guard let self else { return }
+                    if !isFirstPage, page.rows != rows {
+                        changes += 1
+                    }
+                    isFirstPage = false
                     rows = page.rows
                     total = page.total
                     isLoaded = true

@@ -69,5 +69,6 @@ struct TagView: View {
             .background(isOn ? color.color : Color.clear, in: RoundedRectangle(cornerRadius: 4))
             .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(isOn ? Color.clear : Color(.hairline)))
             .foregroundStyle(isOn ? Color(.textPrimary) : Color(.textSecondary))
+            .animation(Motion.hover, value: isOn)
     }
 }

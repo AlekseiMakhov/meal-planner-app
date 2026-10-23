@@ -50,10 +50,11 @@ struct PantryScreen: View {
                         .font(.callout)
                         .foregroundStyle(Color(.textSecondary))
                         .padding(.trailing, 12)
-                        .transition(.opacity)
+                        .noticeTransition()
                 }
             }
         }
+        .animation(Motion.layout, value: list.changes)
         .searchable(text: $searchText, placement: .toolbar, prompt: "Продукт")
         .task(id: searchText) {
             do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
@@ -251,10 +252,10 @@ struct PantryScreen: View {
     }
 
     private func show(_ text: String) {
-        withAnimation { notice = text }
+        withAnimation(Motion.pop) { notice = text }
         Task {
             try? await Task.sleep(for: .seconds(4))
-            withAnimation { if notice == text { notice = nil } }
+            withAnimation(Motion.pop) { if notice == text { notice = nil } }
         }
     }
 
@@ -374,6 +375,7 @@ struct PantryFilterBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .animation(Motion.pop, value: query)
     }
 
     @ViewBuilder private var aisleToggles: some View {

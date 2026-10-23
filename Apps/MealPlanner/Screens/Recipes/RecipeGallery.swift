@@ -10,9 +10,12 @@ struct RecipeGallery: View {
     let categories: [RecipeCategory]
     @Binding var collapsed: Set<RecipeCategory.ID?>
     let images: ImageStore
-    let open: (Recipe.ID) -> Void
+    let actions: RecipeActions
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 16)]
+
+    /// The cards of a folded group as they were: it unfolds with them at once while its rows load again.
+    @State private var folded: [RecipeCategory.ID?: [GalleryItem]] = [:]
 
     var body: some View {
         let items = Dictionary(grouping: list.rows, by: \.categoryID)
@@ -20,16 +23,23 @@ struct RecipeGallery: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(visibleGroups, id: \.categoryID) { group in
                     VStack(alignment: .leading, spacing: 12) {
-                        header(group)
+                        header(group, cards: items[group.categoryID] ?? [])
                         if !collapsed.contains(group.categoryID) {
                             LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(items[group.categoryID] ?? []) { item in
+                                ForEach(items[group.categoryID] ?? folded[group.categoryID] ?? []) { item in
                                     Button {
-                                        open(item.card.id)
+                                        actions.open(item.card.id)
                                     } label: {
                                         RecipeCardView(card: item.card, images: images)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
+                                    .contextMenu {
+                                        RecipeMenu(recipes: [item.card], categories: categories, actions: actions)
+                                    }
+                                    .draggable(PlanDragItem.recipe(item.card.id)) {
+                                        RecipeDragPreview(title: item.card.title)
+                                    }
+                                    .popTransition()
                                     .onAppear { list.rowAppeared(item.id) }
                                 }
                             }
@@ -38,6 +48,7 @@ struct RecipeGallery: View {
                 }
             }
             .padding(24)
+            .animation(Motion.layout, value: list.changes)
         }
     }
 
@@ -49,14 +60,17 @@ struct RecipeGallery: View {
         return Array(groups.prefix(index + 1))
     }
 
-    private func header(_ group: RecipeGroup) -> some View {
+    private func header(_ group: RecipeGroup, cards: [GalleryItem]) -> some View {
         let category = categories.first { $0.id == group.categoryID }
         let isCollapsed = collapsed.contains(group.categoryID)
         return Button {
-            if isCollapsed {
-                collapsed.remove(group.categoryID)
-            } else {
-                collapsed.insert(group.categoryID)
+            withAnimation(Motion.layout) {
+                if isCollapsed {
+                    collapsed.remove(group.categoryID)
+                } else {
+                    folded[group.categoryID] = cards
+                    collapsed.insert(group.categoryID)
+                }
             }
         } label: {
             HStack(spacing: 8) {
@@ -68,6 +82,7 @@ struct RecipeGallery: View {
                 Text("\(group.count)")
                     .foregroundStyle(Color(.textSecondary))
                     .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(group.count)))
             }
             .contentShape(Rectangle())
         }
@@ -123,6 +138,7 @@ struct RecipeCardView: View {
                 isHovered ? Color(.textSecondary).opacity(0.4) : Color(.hairline))
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
+        .animation(Motion.hover, value: isHovered)
         .onHover { isHovered = $0 }
         .task(id: card.photo) {
             guard let photo = card.photo else {
@@ -184,7 +200,7 @@ struct RecipeTable: View {
     let list: PagedList<RecipeQuery, RecipeCard>
     let categories: [RecipeCategory]
     @Binding var sortOrder: [RecipeOrder]
-    let open: (Recipe.ID) -> Void
+    let actions: RecipeActions
 
     @State private var selection: Set<Recipe.ID> = []
 
@@ -247,9 +263,11 @@ struct RecipeTable: View {
             }
             .width(54)
         }
-        .contextMenu(forSelectionType: Recipe.ID.self) { _ in
+        .contextMenu(forSelectionType: Recipe.ID.self) { ids in
+            RecipeMenu(recipes: list.rows.filter { ids.contains($0.id) }, categories: categories, actions: actions)
         } primaryAction: { ids in
-            if let id = ids.first { open(id) }
+            if let id = ids.first { actions.open(id) }
         }
+        .animation(Motion.layout, value: list.changes)
     }
 }

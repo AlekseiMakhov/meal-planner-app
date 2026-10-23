@@ -14,6 +14,9 @@ struct RecipeView: View {
     let pantry: [Product.ID: PantryItem]
     /// Puts a line, or with nil everything missing, on the shopping list; returns how many lines went there.
     let toShopping: (RecipeIngredient?) -> Int
+    /// Puts the recipe into a category or takes it out, without the editor.
+    let setCategory: (RecipeCategory.ID, Bool) -> Void
+    let newCategory: () -> Void
 
     @State private var showsVideo = false
     @State private var added: String?
@@ -44,6 +47,8 @@ struct RecipeView: View {
                     notes
                     links
                 }
+                // Another number of servings rolls the amounts and the nutrition over to the new values.
+                .animation(Motion.layout, value: servings)
                 .padding(.horizontal, 40)
                 .padding(.vertical, 28)
                 .frame(maxWidth: 860, alignment: .leading)
@@ -65,9 +70,11 @@ struct RecipeView: View {
             CoverImage(url: images.url(for: photo), height: 300)
                 .overlay(alignment: .bottomTrailing) {
                     if player != nil {
-                        Button("Смотреть видео", systemImage: "play.fill") { showsVideo = true }
-                            .buttonStyle(.borderedProminent)
-                            .padding(16)
+                        Button("Смотреть видео", systemImage: "play.fill") {
+                            withAnimation(Motion.swap) { showsVideo = true }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(16)
                     }
                 }
         }
@@ -75,14 +82,34 @@ struct RecipeView: View {
 
     // MARK: - Header
 
-    @ViewBuilder private var tags: some View {
+    /// The categories and meals; «+» puts the recipe into a category right on the page.
+    private var tags: some View {
         let chosen = categories.filter { details.categoryIDs.contains($0.id) }
         let meals = mealTypes.filter { details.mealTypeIDs.contains($0.id) }
-        if !chosen.isEmpty || !meals.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(chosen) { TagView(name: $0.name, color: $0.color) }
-                ForEach(meals) { TagView(name: $0.name, color: $0.color) }
+        return HStack(spacing: 6) {
+            ForEach(chosen) { TagView(name: $0.name, color: $0.color) }
+            ForEach(meals) { TagView(name: $0.name, color: $0.color) }
+            Menu {
+                CategoryToggles(categories: categories) {
+                    details.categoryIDs.contains($0)
+                } set: { id, isOn in
+                    setCategory(id, isOn)
+                } new: {
+                    newCategory()
+                }
+            } label: {
+                if chosen.isEmpty {
+                    Label("Добавить в категорию", systemImage: "plus")
+                } else {
+                    Image(systemName: "plus")
+                }
             }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .foregroundStyle(Color(.textSecondary))
+            .help("Добавить рецепт в категорию или убрать из неё")
         }
     }
 
@@ -140,6 +167,7 @@ struct RecipeView: View {
             Text(value ?? "—")
                 .font(.title3)
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .foregroundStyle(value == nil ? Color(.textSecondary) : Color(.textPrimary))
         }
     }
@@ -173,7 +201,7 @@ struct RecipeView: View {
                 if let added {
                     Text(added)
                         .foregroundStyle(Color(.textSecondary))
-                        .transition(.opacity)
+                        .noticeTransition()
                 }
                 if availability.missingCount > 0 {
                     Button("Недостающее в покупки", systemImage: "cart.badge.plus") { add(nil) }
@@ -235,6 +263,7 @@ struct RecipeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(amount.amount)
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .gridColumnAlignment(.trailing)
             Text(amount.unit)
                 .foregroundStyle(Color(.textSecondary))
@@ -256,10 +285,10 @@ struct RecipeView: View {
 
     private func add(_ line: RecipeIngredient?) {
         let count = toShopping(line)
-        withAnimation { added = count == 0 ? "Уже в покупках" : "Добавлено в покупки" }
+        withAnimation(Motion.pop) { added = count == 0 ? "Уже в покупках" : "Добавлено в покупки" }
         Task {
             try? await Task.sleep(for: .seconds(3))
-            withAnimation { added = nil }
+            withAnimation(Motion.pop) { added = nil }
         }
     }
 

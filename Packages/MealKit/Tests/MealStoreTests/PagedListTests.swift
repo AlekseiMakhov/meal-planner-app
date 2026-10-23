@@ -78,6 +78,28 @@ struct PagedListTests {
         list.stop()
     }
 
+    @Test func onlyChangesInPlaceCountAsChanges() async throws {
+        let fixture = try Fixture()
+        for index in 0..<150 {
+            try fixture.add(String(format: "Продукт %03d", index), kcal: Double(index))
+        }
+        let list = list(fixture)
+        list.start()
+        try await until(list) { $0.rows.count == 100 }
+        list.rowAppeared(list.rows[99].id)
+        try await until(list) { $0.rows.count == 150 }
+        list.query.kcal.min = 10
+        try await until(list) { $0.total == 140 }
+        #expect(list.changes == 0, "first rows, the next block and a new query are not changes")
+
+        var product = list.rows[0]
+        product.name = "Продукт 010, свежий"
+        try fixture.database.save(product)
+        try await until(list) { $0.changes == 1 }
+        #expect(list.rows.first?.name == "Продукт 010, свежий")
+        list.stop()
+    }
+
     @Test func aNewQueryStartsOverFromTheFirstBlock() async throws {
         let fixture = try Fixture()
         for index in 0..<150 {

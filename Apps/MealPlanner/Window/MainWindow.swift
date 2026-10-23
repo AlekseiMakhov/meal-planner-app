@@ -30,18 +30,26 @@ struct MainWindow: View {
                 }
                 Section {
                     ForEach(categories) { summary in
-                        Label {
-                            Text(summary.category.name)
-                        } icon: {
-                            Image(systemName: "circle.fill")
-                                .foregroundStyle(summary.category.color.color)
-                                .imageScale(.small)
-                        }
-                        .badge(summary.count)
-                        .tag(AppModel.SidebarItem.category(summary.id))
-                        .contextMenu { categoryMenu(summary.category) }
+                        CategoryRow(category: summary.category) { recipes in add(recipes, to: summary.category) }
+                            .badge(summary.count)
+                            .tag(AppModel.SidebarItem.category(summary.id))
+                            .contextMenu { categoryMenu(summary.category) }
                     }
                     .onMove(perform: moveCategories)
+                    Button {
+                        name(.new)
+                    } label: {
+                        Label("Новая категория", systemImage: "plus")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(.textSecondary))
+                    if categories.isEmpty {
+                        Text(
+                            "«Завтраки», «Супы», «На праздник»… Рецепт может быть в нескольких: добавьте его из меню рецепта или перетащите карточку сюда."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color(.textSecondary))
+                    }
                 } header: {
                     HStack {
                         Text("Категории")
@@ -49,6 +57,7 @@ struct MainWindow: View {
                         Button("Новая категория", systemImage: "plus") { name(.new) }
                             .labelStyle(.iconOnly)
                             .buttonStyle(.plain)
+                            .help("Новая категория")
                     }
                 }
             }
@@ -240,6 +249,14 @@ struct MainWindow: View {
         }
     }
 
+    private func add(_ recipes: [Recipe.ID], to category: RecipeCategory) {
+        do {
+            try model.database?.setCategory(category.id, isOn: true, recipeIDs: recipes)
+        } catch {
+            categoryProblem = String(describing: error)
+        }
+    }
+
     private func moveCategories(from source: IndexSet, to destination: Int) {
         var ids = categories.map(\.id)
         ids.move(fromOffsets: source, toOffset: destination)
@@ -248,6 +265,42 @@ struct MainWindow: View {
         } catch {
             categoryProblem = String(describing: error)
         }
+    }
+}
+
+/// A category in the sidebar; a recipe dropped onto it goes into the category and stays in its others.
+private struct CategoryRow: View {
+    let category: RecipeCategory
+    let drop: ([Recipe.ID]) -> Void
+
+    @State private var isTargeted = false
+
+    var body: some View {
+        Label {
+            Text(category.name)
+        } icon: {
+            Image(systemName: "circle.fill")
+                .foregroundStyle(category.color.color)
+                .imageScale(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .background(isTargeted ? Color.accentColor.opacity(0.3) : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+        .animation(Motion.hover, value: isTargeted)
+        .dropDestination(for: PlanDragItem.self) { items, _ in
+            let recipes = items.compactMap { item -> Recipe.ID? in
+                switch item {
+                case .recipe(let id): id
+                case .entry: nil
+                }
+            }
+            guard !recipes.isEmpty else { return false }
+            drop(recipes)
+            return true
+        } isTargeted: {
+            isTargeted = $0
+        }
+        .help("Перетащите сюда рецепт, чтобы добавить его в «\(category.name)»")
     }
 }
 

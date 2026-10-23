@@ -94,6 +94,8 @@ struct RecipeFilterBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .animation(Motion.pop, value: query)
+        .animation(Motion.pop, value: editing)
         .popover(item: $picking, arrowEdge: .bottom) { filter in
             ProductPicker(
                 database: database, prompt: filter == .with ? "Рецепты с продуктом…" : "Рецепты без продукта…"

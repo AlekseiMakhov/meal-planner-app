@@ -41,6 +41,7 @@ struct ProductFilterBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .animation(Motion.pop, value: query)
     }
 
     @ViewBuilder private var chips: some View {
