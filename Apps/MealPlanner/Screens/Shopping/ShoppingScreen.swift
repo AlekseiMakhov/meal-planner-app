@@ -86,7 +86,7 @@ struct ShoppingScreen: View {
                     Button("Синхронизировать с «Напоминаниями»", systemImage: "checklist") {
                         Task { await reminders.syncNow() }
                     }
-                    .help(remindersStatus(reminders))
+                    .help(reminders.statusLine)
                     .disabled(reminders.isSyncing)
                 }
                 sortMenu
@@ -233,13 +233,6 @@ struct ShoppingScreen: View {
         } set: { key in
             list.query.sort = [SortTerm(key, key == .createdAt ? .descending : .ascending)]
         }
-    }
-
-    private func remindersStatus(_ reminders: RemindersModel) -> String {
-        if let problem = reminders.problem { return "«Напоминания»: \(problem)" }
-        guard let date = reminders.lastSync else { return "Синхронизируется с «Напоминаниями»" }
-        return
-            "Синхронизировано с «Напоминаниями» в \(date.formatted(.dateTime.hour().minute().locale(Formatting.locale)))"
     }
 
     /// The list as text for Messages or Notes: by aisle, with amounts and dishes.

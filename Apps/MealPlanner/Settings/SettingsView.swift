@@ -48,6 +48,7 @@ private struct GeneralSettings: View {
                 )
                 .foregroundStyle(.secondary)
             }
+            BackgroundSettings()
             LabeledContent("Папка с данными") {
                 if let directory = model.dataDirectory {
                     HStack {
@@ -85,7 +86,7 @@ private struct GeneralSettings: View {
                 Text("Резервные копии")
             } footer: {
                 Text(
-                    "Копия базы делается раз в день при запуске, хранятся последние 14. Фото лежат отдельно, в папке Images рядом с базой. Чтобы вернуть копию, закройте приложение и положите её вместо meals.sqlite в папке с данными."
+                    "Копия базы делается раз в день — и тогда, когда приложение неделями работает в строке меню, — хранятся последние 14. Фото лежат отдельно, в папке Images рядом с базой. Чтобы вернуть копию, выйдите из приложения и положите её вместо meals.sqlite в папке с данными."
                 )
                 .foregroundStyle(.secondary)
             }
@@ -110,6 +111,42 @@ private struct GeneralSettings: View {
         let short = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
         return AppModel.isDebugBuild ? "\(short) (\(build), Debug)" : "\(short) (\(build))"
+    }
+}
+
+/// Meal Planner as a service: in the menu bar with its window closed, and opened at login.
+private struct BackgroundSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Section {
+            Toggle(
+                "Открывать при входе в систему",
+                isOn: Binding(get: { model.loginItem.state != .disabled }, set: { model.loginItem.set($0) }))
+            if model.loginItem.state == .needsApproval {
+                HStack {
+                    Text("Разрешите Meal Planner в Системных настройках → Основные → Объекты входа.")
+                        .foregroundStyle(.secondary)
+                    Button("Открыть…") { model.loginItem.openSystemSettings() }
+                }
+            }
+        } header: {
+            Text("Работа в фоне")
+        } footer: {
+            Text(footer)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { model.loginItem.refresh() }
+    }
+
+    private var footer: String {
+        var text =
+            "Когда окно закрыто, Meal Planner остаётся в строке меню: синхронизирует покупки с «Напоминаниями», подхватывает то, что записал Claude, и раз в день делает копию. При входе в систему он открывается без окна. Выйти совсем — ⌘Q или «Выйти» в меню значка."
+        if !Bundle.main.bundleURL.path(percentEncoded: false).hasPrefix("/Applications/") {
+            text +=
+                " Эта копия лежит не в /Applications: после новой сборки её путь изменится, поэтому вход в систему включайте у установленной."
+        }
+        return text
     }
 }
 

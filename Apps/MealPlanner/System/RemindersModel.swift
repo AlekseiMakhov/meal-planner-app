@@ -6,7 +6,9 @@ import MealStore
 import Observation
 
 /// The shopping list in «Напоминания»: settings, access, and a round of sync whenever either side changes — the
-/// app's list, «Напоминания» (EventKit says so), or the app coming back to the front.
+/// app's list (Claude's writes included), «Напоминания» (EventKit says so) — and when the app comes back to the
+/// front, the Mac wakes up, and every quarter of an hour in case a change slipped by. It runs with the window
+/// closed too: the app stays in the menu bar.
 @MainActor @Observable
 final class RemindersModel {
     static let settingsKey = "reminders.settings"
@@ -31,17 +33,34 @@ final class RemindersModel {
     @ObservationIgnored private var store: EventKitReminderStore?
     @ObservationIgnored private var engine: ShoppingSync?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var pending: Task<Void, Never>?
     @ObservationIgnored private var watch: Task<Void, Never>?
+    @ObservationIgnored private var periodic: Task<Void, Never>?
+    /// Keeps App Nap from putting the rounds off while the app sits in the menu bar.
+    @ObservationIgnored private var activity: NSObjectProtocol?
+
+    /// The time between the rounds that only check, in case a change slipped by.
+    static let checkInterval: Duration = .seconds(15 * 60)
 
     init(database: AppDatabase) {
         self.database = database
         settings =
             UserDefaults.standard.data(forKey: Self.settingsKey)
             .flatMap { try? JSONDecoder().decode(ReminderSettings.self, from: $0) } ?? ReminderSettings()
-        if settings.isEnabled, EventKitReminderStore.isAuthorized {
+        if settings.isEnabled, EventKitReminderStore.isAuthorized, !AppModel.isRunningTests {
             start()
         }
+    }
+
+    /// «Синхронизировано с «Напоминаниями» в 10:45», the problem, or that the sync is off.
+    var statusLine: String {
+        guard settings.isEnabled else { return "Синхронизация с «Напоминаниями» выключена" }
+        if let problem { return "«Напоминания»: \(problem)" }
+        if settings.listID == nil { return "Выберите список в Настройках → «Напоминания»" }
+        guard let lastSync else { return "Синхронизируется с «Напоминаниями»" }
+        let time = lastSync.formatted(.dateTime.hour().minute().locale(Formatting.locale))
+        return "Синхронизировано с «Напоминаниями» в \(time)"
     }
 
     var isAuthorized: Bool {
@@ -145,6 +164,21 @@ final class RemindersModel {
                 [weak self] _ in
                 MainActor.assumeIsolated { self?.schedule() }
             })
+        workspaceObservers.append(
+            NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.schedule() }
+            })
+        periodic = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.checkInterval)
+                guard !Task.isCancelled else { return }
+                self?.schedule()
+            }
+        }
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep, reason: "Синхронизация покупок с «Напоминаниями»")
         let database = database
         watch = Task { [weak self] in
             do {
@@ -161,10 +195,19 @@ final class RemindersModel {
     private func stop() {
         pending?.cancel()
         watch?.cancel()
+        periodic?.cancel()
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
         }
         observers = []
+        for observer in workspaceObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        workspaceObservers = []
+        if let activity {
+            ProcessInfo.processInfo.endActivity(activity)
+            self.activity = nil
+        }
         engine = nil
         store = nil
     }

@@ -9,7 +9,6 @@ struct MainWindow: View {
 
     @Environment(AppModel.self) private var model
     @State private var categories: [CategorySummary] = []
-    @State private var shoppingCount = 0
     @State private var naming: CategoryNaming?
     @State private var name = ""
     @State private var deleting: RecipeCategory?
@@ -82,14 +81,9 @@ struct MainWindow: View {
                 categoryProblem = String(describing: error)
             }
         }
-        .task {
-            guard let database = model.database else { return }
-            do {
-                for try await count in database.observeShoppingCount() { shoppingCount = count }
-            } catch {
-                categoryProblem = String(describing: error)
-            }
-        }
+        // In the Dock while the window is open; closed, the app stays in the menu bar and keeps syncing.
+        .onAppear { model.windowDidOpen() }
+        .onDisappear { model.windowDidClose() }
         .alert(naming?.title ?? "", isPresented: isPresent($naming), presenting: naming) { naming in
             TextField("Название", text: $name)
             Button("Сохранить") { save(naming) }
@@ -148,7 +142,7 @@ struct MainWindow: View {
 
     /// A section of the sidebar; «Покупки» counts what is still to buy.
     private func sectionRow(_ section: AppModel.Section) -> some View {
-        let badge = section == .shopping ? shoppingCount : 0
+        let badge = section == .shopping ? model.shoppingCount : 0
         return Label(section.title, systemImage: section.symbol)
             .badge(badge)
             .tag(AppModel.SidebarItem.section(section))

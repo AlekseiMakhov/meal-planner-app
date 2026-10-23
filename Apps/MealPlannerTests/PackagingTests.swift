@@ -12,6 +12,10 @@ struct PackagingTests {
         #expect(Bundle.main.bundleURL.lastPathComponent == "MealPlanner.app")
     }
 
+    @Test func livesInTheMenuBar() {
+        #expect(Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool == true)
+    }
+
     @Test func debugBuildHasAnIdentityOfItsOwn() {
         #expect(Bundle.main.bundleIdentifier == "inco.mealplanner.app.debug")
     }

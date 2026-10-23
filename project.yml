@@ -44,6 +44,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: inco.mealplanner.app
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "Meal Planner & Recipes"
+        # Lives in the menu bar and keeps syncing with the window closed; the Dock icon shows while the window is open.
+        INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.lifestyle
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "Meal Planner кладёт список покупок в «Напоминания», чтобы он был на iPhone у вас и у семьи, и узнаёт оттуда, что уже куплено."
         INFOPLIST_FILE: Config/MealPlanner-Info.plist # URL scheme; merged with the generated keys

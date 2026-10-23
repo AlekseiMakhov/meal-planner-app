@@ -5,7 +5,8 @@ import OSLog
 import Observation
 import os
 
-/// What the window shows and the data it works with.
+/// What the window shows and the data it works with. The app outlives its window: it stays in the menu bar and
+/// keeps the shopping list in sync, so the window is opened and closed through this model.
 @MainActor @Observable
 final class AppModel {
     /// The sidebar's sections, in its order.
@@ -51,6 +52,8 @@ final class AppModel {
     }
 
     nonisolated static let log = Logger(subsystem: "inco.mealplanner", category: "app")
+    /// Under tests the app neither syncs, nor tidies its data, nor opens its window.
+    nonisolated static let isRunningTests = ProcessInfo.processInfo.environment.keys.contains { $0.hasPrefix("XCTest") }
 
     var sidebar = SidebarItem.section(.recipes)
     var problem: Problem?
@@ -80,6 +83,18 @@ final class AppModel {
     private(set) var database: AppDatabase?
     /// The shopping list in «Напоминания».
     private(set) var reminders: RemindersModel?
+    /// What is still to buy: the sidebar's badge and the menu bar's menu.
+    private(set) var shoppingCount = 0
+    /// Opening Meal Planner at login, without its window.
+    let loginItem = LoginItem()
+    private(set) var isWindowOpen = false
+
+    /// The window and Settings open through actions the menu bar icon hands over: it is the one view that always
+    /// exists, with or without a window.
+    @ObservationIgnored private var openWindow: (@MainActor () -> Void)?
+    @ObservationIgnored private var openSettings: (@MainActor () -> Void)?
+    /// A person started the app, not the login: the window opens as soon as it can.
+    @ObservationIgnored private var opensWindowAtLaunch = false
 
     nonisolated static var isDebugBuild: Bool {
         AppIdentity.isDebug(bundleID: Bundle.main.bundleIdentifier ?? "")
@@ -127,17 +142,11 @@ final class AppModel {
         do {
             let database = try AppDatabase.open(in: dataDirectory)
             self.database = database
-            // What the trash and interrupted photo saves leave behind; the window does not wait for it.
-            Task.detached(priority: .background) {
-                _ = try? database.emptyTrash()
-                _ = try? database.removeUnusedImages()
-                do {
-                    try Self.backups(dataDirectory: dataDirectory).backUp(database)
-                } catch {
-                    Self.log.error("Daily backup failed: \(error, privacy: .public)")
-                }
+            if !Self.isRunningTests {
+                maintainDaily(database, dataDirectory)
             }
             watchExternalChanges(database)
+            watchShoppingCount(database)
             reminders = RemindersModel(database: database)
         } catch {
             problem = Problem(title: "Не открылась база данных", message: "\(error)")
@@ -164,6 +173,67 @@ final class AppModel {
         }
     }
 
+    /// `mealplanner://shopping/…` — the link in a reminder — opens the shopping list; any other link, the window.
+    func open(_ url: URL) {
+        showMainWindow(url.host() == "shopping" ? .shopping : nil)
+    }
+
+    // MARK: - The window
+
+    /// The app has started: started by a person, it opens its window; at login it stays in the menu bar.
+    func launched(atLogin: Bool) {
+        opensWindowAtLaunch = !atLogin
+        openWindowAtLaunch()
+    }
+
+    /// The menu bar icon hands over the actions that open windows.
+    func windowActionsArrived(open: @escaping @MainActor () -> Void, settings: @escaping @MainActor () -> Void) {
+        openWindow = open
+        openSettings = settings
+        openWindowAtLaunch()
+    }
+
+    /// The launch and the icon come in either order; the window opens once both are there.
+    private func openWindowAtLaunch() {
+        guard opensWindowAtLaunch, openWindow != nil else { return }
+        opensWindowAtLaunch = false
+        showMainWindow()
+    }
+
+    func showMainWindow(_ section: Section? = nil) {
+        if let section {
+            sidebar = .section(section)
+        }
+        NSApp.activate()
+        openWindow?()
+    }
+
+    func showSettings() {
+        NSApp.activate()
+        openSettings?()
+    }
+
+    /// In the Dock and the app switcher while the window is open; only in the menu bar without it.
+    func windowDidOpen() {
+        isWindowOpen = true
+        setActivationPolicy(.regular)
+    }
+
+    func windowDidClose() {
+        isWindowOpen = false
+        setActivationPolicy(.accessory)
+    }
+
+    private func setActivationPolicy(_ policy: NSApplication.ActivationPolicy) {
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        if policy == .regular {
+            NSApp.activate()
+        }
+    }
+
+    // MARK: - Claude
+
     /// Sends the request to Claude, or first offers to connect Meal Planner's server: without it Claude can
     /// neither read nor change the data.
     func askClaude(_ request: String) {
@@ -171,6 +241,40 @@ final class AppModel {
             ClaudeHandoff.send(request, workspace: claudeWorkspace)
         } else {
             claudeRequestAwaitingConnection = request
+        }
+    }
+
+    // MARK: - In the background
+
+    /// Once a day — also when the app has been running in the menu bar for days: the copy, the trash, photos
+    /// left behind. The window does not wait for it.
+    private func maintainDaily(_ database: AppDatabase, _ dataDirectory: URL) {
+        Task.detached(priority: .background) {
+            var done: Day?
+            while !Task.isCancelled {
+                let today = Day.today()
+                if done != today {
+                    done = today
+                    _ = try? database.emptyTrash()
+                    _ = try? database.removeUnusedImages()
+                    do {
+                        try Self.backups(dataDirectory: dataDirectory).backUp(database)
+                    } catch {
+                        Self.log.error("Daily backup failed: \(error, privacy: .public)")
+                    }
+                }
+                try? await Task.sleep(for: .seconds(3600))
+            }
+        }
+    }
+
+    private func watchShoppingCount(_ database: AppDatabase) {
+        Task { [weak self] in
+            do {
+                for try await count in database.observeShoppingCount() { self?.shoppingCount = count }
+            } catch {
+                Self.log.error("The shopping count stopped: \(error, privacy: .public)")
+            }
         }
     }
 

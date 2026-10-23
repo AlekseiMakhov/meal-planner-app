@@ -34,6 +34,27 @@ struct AppStateTests {
         #expect(try database.aisles().count == 18)
     }
 
+    @Test func aPersonsLaunchOpensTheWindowTheLoginDoesNot() {
+        var opened: [String] = []
+        let atLogin = AppModel()
+        atLogin.launched(atLogin: true)
+        atLogin.windowActionsArrived(open: { opened.append("login") }, settings: {})
+        #expect(opened.isEmpty, "at login the app stays in the menu bar")
+
+        let byHand = AppModel()
+        byHand.windowActionsArrived(open: { opened.append("person") }, settings: {})
+        #expect(opened.isEmpty, "not before the launch is known")
+        byHand.launched(atLogin: false)
+        byHand.windowActionsArrived(open: { opened.append("again") }, settings: {})
+        #expect(opened == ["person"], "once, whichever comes first")
+    }
+
+    @Test func aReminderLinkOpensTheShoppingList() throws {
+        let model = AppModel()
+        model.open(try #require(URL(string: "mealplanner-debug://shopping/12")))
+        #expect(model.section == .shopping)
+    }
+
     @Test func quickSearchOpensWhereTheHitLives() {
         let model = AppModel()
         model.open(QuickSearch.Hit(kind: .product, id: 5, title: "Фета", detail: ""))
