@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "MealCore", targets: ["MealCore"]),
         .library(name: "MealStore", targets: ["MealStore"]),
         .library(name: "MealMCP", targets: ["MealMCP"]),
+        .library(name: "MealReminders", targets: ["MealReminders"]),
     ],
     dependencies: [
         // Minor-pinned: the Xcode project is generated, so its Package.resolved is not kept in git.
@@ -18,8 +19,10 @@ let package = Package(
         .target(name: "MealCore"),
         .target(name: "MealStore", dependencies: ["MealCore", .product(name: "GRDB", package: "GRDB.swift")]),
         .target(name: "MealMCP", dependencies: ["MealCore", "MealStore", .product(name: "MCP", package: "swift-sdk")]),
+        .target(name: "MealReminders", dependencies: ["MealCore", "MealStore"]),
         .testTarget(name: "MealCoreTests", dependencies: ["MealCore"]),
         .testTarget(name: "MealStoreTests", dependencies: ["MealStore", "MealCore"]),
+        .testTarget(name: "MealRemindersTests", dependencies: ["MealReminders", "MealStore", "MealCore"]),
         .testTarget(
             name: "MealMCPTests",
             dependencies: ["MealMCP", "MealStore", "MealCore", .product(name: "MCP", package: "swift-sdk")]),

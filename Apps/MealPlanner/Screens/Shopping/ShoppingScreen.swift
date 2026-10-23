@@ -7,6 +7,7 @@ import SwiftUI
 struct ShoppingScreen: View {
     let database: AppDatabase
 
+    @Environment(AppModel.self) private var model
     @AppStorage(ShoppingScreen.stocksWithoutAskingKey) private var stocksWithoutAsking = false
     @State private var list: PagedList<ShoppingQuery, ShoppingEntry>
     @State private var aisles: [Aisle] = []
@@ -74,6 +75,13 @@ struct ShoppingScreen: View {
         .onDisappear { list.stop() }
         .toolbar {
             ToolbarItemGroup {
+                if let reminders = model.reminders, reminders.settings.isEnabled, reminders.settings.listID != nil {
+                    Button("Синхронизировать с «Напоминаниями»", systemImage: "checklist") {
+                        Task { await reminders.syncNow() }
+                    }
+                    .help(remindersStatus(reminders))
+                    .disabled(reminders.isSyncing)
+                }
                 sortMenu
                 ShareLink(item: shareText, subject: Text("Покупки"), preview: SharePreview("Покупки")) {
                     Label("Поделиться списком", systemImage: "square.and.arrow.up")
@@ -218,6 +226,13 @@ struct ShoppingScreen: View {
         } set: { key in
             list.query.sort = [SortTerm(key, key == .createdAt ? .descending : .ascending)]
         }
+    }
+
+    private func remindersStatus(_ reminders: RemindersModel) -> String {
+        if let problem = reminders.problem { return "«Напоминания»: \(problem)" }
+        guard let date = reminders.lastSync else { return "Синхронизируется с «Напоминаниями»" }
+        return
+            "Синхронизировано с «Напоминаниями» в \(date.formatted(.dateTime.hour().minute().locale(Formatting.locale)))"
     }
 
     /// The list as text for Messages or Notes: by aisle, with amounts and dishes.

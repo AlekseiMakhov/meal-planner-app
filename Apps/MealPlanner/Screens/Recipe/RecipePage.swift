@@ -91,6 +91,10 @@ struct RecipePage: View {
                 }
                 Button("Править", systemImage: "pencil") { edit(details) }
                     .keyboardShortcut("e", modifiers: .command)
+                ShareButton {
+                    RecipeShare.items(
+                        for: details, servings: servings ?? details.recipe.servings, images: database.images)
+                }
                 Menu("Ещё", systemImage: "ellipsis.circle") {
                     Button("Дозаполнить с Claude", systemImage: "sparkles") {
                         model.askClaude(ClaudeRequest.fillRecipe("«\(details.recipe.title)» (id \(details.recipe.id))"))

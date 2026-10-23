@@ -2,7 +2,7 @@
 
 ## Что это
 
-Meal Planner & Recipes — macOS-приложение: рецепты с КБЖУ, база продуктов, запасы дома, список покупок и меню на неделю. Данные доступны Claude Desktop и Claude Code через MCP. Готовы этапы 0 (каркас), 1 (продукты и единицы), 2 (рецепты и категории), 3 (MCP и Claude), 4 (запасы и покупки) и 5 (меню на неделю).
+Meal Planner & Recipes — macOS-приложение: рецепты с КБЖУ, база продуктов, запасы дома, список покупок и меню на неделю. Данные доступны Claude Desktop и Claude Code через MCP. Готовы этапы 0 (каркас), 1 (продукты и единицы), 2 (рецепты и категории), 3 (MCP и Claude), 4 (запасы и покупки), 5 (меню на неделю) и 6 («Напоминания» и «Поделиться»).
 
 - Замысел, решения и этапы — [plan-meal-planner.md](plan-meal-planner.md). Решения оттуда не пересматриваем без явной просьбы; новое решение сначала вносим в план.
 
@@ -32,10 +32,10 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
   - `Screens/Lists` — общие части списков: чипы фильтров, диапазоны, ячейки, выбор продукта;
   - `Screens/Products` — экран продуктов;
   - `Screens/Recipes` — галерея, таблица КБЖУ, фильтры, корзина;
-  - `Screens/Recipe` — страница рецепта и её редактор, ингредиенты с наличием дома, фото, видео и превью ссылок;
+  - `Screens/Recipe` — страница рецепта и её редактор, ингредиенты с наличием дома, фото, видео и превью ссылок, «Поделиться» (`ShareCard`: карточка-картинка через `ImageRenderer` и текст, `NSSharingServicePicker`);
   - `Screens/Planner` — меню на неделю: сетка, ячейки и карточки блюд (`PlanCell`, перетаскивание — `PlanDragItem` с типом `inco.mealplanner.plan-item` из Info.plist), рецепты сбоку (`PlannerLibrary`), «Приготовлено» (`CookedSheet`);
   - `Screens/Pantry`, `Screens/Shopping` — запасы и список покупок; общие части — `Lists/QuickAddField` (строка «яйца 10», поле количества, группы по отделам);
-  - `System` — связь с Claude: конфиг Claude Desktop (`ClaudeConnection`), кнопки «… с Claude» (`ClaudeHandoff`), папка с CLAUDE.md для сессий Claude Code (`ClaudeWorkspace`);
+  - `System` — связь с Claude: конфиг Claude Desktop (`ClaudeConnection`), кнопки «… с Claude» (`ClaudeHandoff`), папка с CLAUDE.md для сессий Claude Code (`ClaudeWorkspace`); синхронизация с «Напоминаниями» (`RemindersModel`);
   - `Settings`, `Resources` (`Assets.xcassets` с цветовыми токенами, `Localizable.xcstrings`).
 - `Apps/MCPServer` — точка входа `meal-planner-mcp`; утилита встраивается в `MealPlanner.app/Contents/Helpers/`.
 - `Apps/MealPlannerTests` — тесты, которым нужен собранный бандл приложения.
@@ -43,7 +43,7 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
   - `MealCore` — модели и логика: единицы и пересчёты (`MeasureUnit`, `UnitProfile`), КБЖУ (`Nutrition`, `NutritionTotal`, `RecipeNutrition`), продукт и рецепт (`RecipeDetails`), разбор строк ингредиентов (`IngredientParser`), видео (`VideoEmbed`), поиск (`SearchText`, `RussianStemmer`), запросы списков (`ProductQuery`, `RecipeQuery`, `SortTerm`, `ListPage`), общие имена (`AppIdentity`), запросы к Claude (`ClaudeRequest`: тексты промптов MCP и кнопок «… с Claude»), запасы и покупки (`Pantry.swift`: `PantryItem`, наличие строки рецепта `Availability`, нехватка `ShoppingAddition`, `ShoppingItem`, запросы `PantryQuery` и `ShoppingQuery`), меню (`Planner.swift`: день `Day`, блюдо `PlanEntry`, неделя `WeekPlan` с КБЖУ дня и распределением запасов `MenuSupply`, списание `CookingUse`). Только Foundation: без AppKit, SwiftUI и GRDB.
   - `MealStore` → `MealCore`, GRDB: схема, миграции, начальная база (`Seed/`), запросы списков в SQL, кеш рецептов (`RecipeDerived`), фото (`ImageStore`), `PagedList`, уведомления о записи из другого процесса (`ExternalChanges`), запасы и покупки (`Pantry+Store`, `Shopping+Store`, списки — `PantryListSQL`, `ShoppingListSQL`), меню (`Planner+Store`).
   - `MealMCP` → `MealCore`, `MealStore`, MCP SDK: инструменты (`MealTools` и расширения `ProductTools`, `CategoryTools`, `RecipeTools`, `PantryTools`, `PlannerTools`), разбор аргументов (`Arguments`), вид ответов (`ToolOutput`), промпты (`MealPrompts`).
-  - `MealReminders` (EventKit) появится на этапе 6.
+  - `MealReminders` → `MealCore`, `MealStore`, EventKit: синхронизация списка покупок с «Напоминаниями» (`ShoppingSync`), настройки и вид пунктов (`ReminderSettings`, `ReminderText`), хранилище — протокол `ReminderStore`, на Mac `EventKitReminderStore`, в тестах подделка.
 - `Tools/seed` — каталог начальной базы и её сборка.
 
 ## Подпись и идентификаторы
@@ -107,6 +107,14 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 - «Приготовлено» сначала показывает, что спишется (`cookingUse`: только посчитанные продукты, без staple), списывает подтверждённое и запоминает его в `used`; отмена возвращает ровно это. Дата готовки идёт в `recipe_stats.lastCookedAt` — сортировка «Давно не готовили».
 - Перетаскивание: рецепт из списка — новое блюдо, блюдо — перенос, с ⌥ — копия; ⌫ убирает выбранные.
 
+## «Напоминания» и «Поделиться»
+
+- Синхронизация — `ShoppingSync`, раунд в обе стороны: при изменении списка покупок (через секунду тишины), по `EKEventStoreChanged` и при возвращении приложения на передний план. Включается в Настройках → «Напоминания»; доступ запрашивается при включении (`NSRemindersFullAccessUsageDescription`, entitlement `com.apple.security.personal-information.calendars`).
+- Связь пункта и напоминания — `reminder_link` (что последний раунд записал: заголовок и отметку; разница показывает, какая сторона изменилась) и адрес `mealplanner://shopping/<id>` в напоминании (у Debug — `mealplanner-debug`). Все когда-либо связанные напоминания — в `reminder_known`: напоминание без пункта удаляется, даже если iCloud потерял адрес.
+- Кто что решает: заголовок и заметку пишет приложение; отметку, удаление и новые пункты — телефон тоже. Количество, вписанное в заголовок на телефоне («Молоко — 2 л»), принимается. Пункт родных разбирается как строка ингредиента; если такой же ещё не куплен — прибавляется к нему, а лишнее напоминание удаляется.
+- Отмеченное на телефоне становится купленным; с «пополнять без вопросов» сразу идёт в запасы, иначе ждёт «Убрать в запасы…».
+- «Поделиться» — карточка шириной 390 pt в масштабе 3 (1170 px, ширина экрана телефона) и тот же рецепт текстом; QR-код ведёт на видео или источник.
+
 ## Поиск, фильтры и сортировка
 
 - Запрос экрана — тип в `MealCore` (`ProductQuery`, `RecipeQuery`): текст, фильтры, сортировка. `MealStore` переводит его в SQL (`ProductListSQL`, `RecipeListSQL`); тот же запрос получат и MCP-инструменты.
@@ -131,7 +139,7 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 ## Хранилище и данные
 
 - База — `AppDatabase` (GRDB): `~/Library/Application Support/inco.mealplanner/meals.sqlite`, у Debug — папка `inco.mealplanner.debug`. И приложение, и MCP-сервер пишут через `DatabasePool` (WAL) с ожиданием блокировки до 5 секунд.
-- Схема меняется только новой миграцией в `AppDatabase.migrator`; уже применённые миграции не редактируем. Сейчас: `products`, `seed: products 1`, `recipes`, `pantry`, `planner`.
+- Схема меняется только новой миграцией в `AppDatabase.migrator`; уже применённые миграции не редактируем. Сейчас: `products`, `seed: products 1`, `recipes`, `pantry`, `planner`, `reminders`.
 - `AppDatabase.inMemory()` — пустая база для тестов (фото — во временной папке), `inMemory(seeded: true)` — с начальной базой.
 
 ## MCP

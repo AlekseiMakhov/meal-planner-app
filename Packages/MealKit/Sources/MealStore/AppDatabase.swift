@@ -108,6 +108,21 @@ public struct AppDatabase: Sendable {
         migrator.registerMigration("planner") { db in
             try createPlannerTables(db)
         }
+        migrator.registerMigration("reminders") { db in
+            // Which reminder in «Напоминания» stands for a shopping item, and what the last sync wrote there: a
+            // difference since then tells which side changed.
+            try db.create(table: "reminder_link") { table in
+                table.primaryKey("shoppingItemId", .integer).references("shopping_item", onDelete: .cascade)
+                table.column("reminderId", .text).notNull().unique()
+                table.column("title", .text).notNull()
+                table.column("isChecked", .boolean).notNull()
+            }
+            // Every reminder the app ever made or took in: one whose item is gone is Meal Planner's to delete, even
+            // if iCloud lost the link in its address.
+            try db.create(table: "reminder_known", options: .withoutRowID) { table in
+                table.primaryKey("reminderId", .text)
+            }
+        }
         return migrator
     }
 

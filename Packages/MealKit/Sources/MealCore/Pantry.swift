@@ -226,6 +226,23 @@ extension ShoppingItem {
     }
 }
 
+/// Amounts as people write them, in Russian whatever the Mac's region: «200 г», «1,5 кг», «750 мл», «3 шт.».
+public enum AmountText {
+    private static let locale = Locale(identifier: "ru_RU")
+
+    public static func number(_ value: Double, digits: Int) -> String {
+        value.formatted(.number.locale(locale).precision(.fractionLength(0...digits)))
+    }
+
+    public static func quantity(_ value: Double, _ unit: MeasureUnit) -> String {
+        switch unit {
+        case .gram where value >= 1000: return "\(number(value / 1000, digits: 2)) кг"
+        case .milliliter where value >= 1000: return "\(number(value / 1000, digits: 2)) л"
+        default: return "\(number(value, digits: value < 10 ? 2 : 0)) \(unit.title(for: value))"
+        }
+    }
+}
+
 /// Something to put on the shopping list: a product or a line of text, how much, and why. An item already
 /// there for the same product grows instead of a second one appearing.
 public struct ShoppingAddition: Hashable, Sendable {

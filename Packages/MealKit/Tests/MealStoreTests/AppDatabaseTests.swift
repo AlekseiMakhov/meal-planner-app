@@ -14,7 +14,10 @@ struct AppDatabaseTests {
         let database = try AppDatabase.open(in: folder)
         #expect(FileManager.default.fileExists(atPath: AppDatabase.file(in: folder).path(percentEncoded: false)))
         #expect(try database.journalMode() == "wal")
-        #expect(try database.appliedMigrations() == ["products", "seed: products 1", "recipes", "pantry", "planner"])
+        #expect(
+            try database.appliedMigrations() == [
+                "products", "seed: products 1", "recipes", "pantry", "planner", "reminders",
+            ])
     }
 
     @Test func secondConnectionOpensTheSameFile() throws {
@@ -27,7 +30,8 @@ struct AppDatabaseTests {
     }
 
     @Test func inMemoryDatabaseIsEmptyUnlessAskedForTheBase() throws {
-        #expect(try AppDatabase.inMemory().appliedMigrations() == ["products", "recipes", "pantry", "planner"])
+        #expect(
+            try AppDatabase.inMemory().appliedMigrations() == ["products", "recipes", "pantry", "planner", "reminders"])
         #expect(try AppDatabase.inMemory().products(.init(), limit: 10).total == 0)
         #expect(try AppDatabase.inMemory(seeded: true).products(.init(), limit: 10).total > 300)
     }

@@ -74,6 +74,8 @@ final class AppModel {
     /// `~/Library/Application Support/inco.mealplanner`; a Debug build has a folder of its own.
     let dataDirectory: URL?
     private(set) var database: AppDatabase?
+    /// The shopping list in «Напоминания».
+    private(set) var reminders: RemindersModel?
 
     nonisolated static var isDebugBuild: Bool {
         AppIdentity.isDebug(bundleID: Bundle.main.bundleIdentifier ?? "")
@@ -105,6 +107,7 @@ final class AppModel {
                 _ = try? database.removeUnusedImages()
             }
             watchExternalChanges(database)
+            reminders = RemindersModel(database: database)
         } catch {
             problem = Problem(title: "Не открылась база данных", message: "\(error)")
         }

@@ -1,12 +1,12 @@
 import AppKit
 import MealCore
+import MealReminders
 import SwiftUI
 
-/// Settings (⌘,): where the data lives and which version runs, and Claude. Reminders and the default servings
-/// arrive with their stages.
+/// Settings (⌘,): where the data lives and which version runs, the shopping list in «Напоминания», and Claude.
 struct SettingsView: View {
     enum Page: String {
-        case general, claude
+        case general, reminders, claude
     }
 
     @AppStorage("settings.page") private var page = Page.general
@@ -15,6 +15,9 @@ struct SettingsView: View {
         TabView(selection: $page) {
             Tab("Основные", systemImage: "gearshape", value: Page.general) {
                 GeneralSettings()
+            }
+            Tab("Напоминания", systemImage: "checklist", value: Page.reminders) {
+                RemindersSettings()
             }
             Tab("Claude", systemImage: "sparkles", value: Page.claude) {
                 ClaudeSettings()
@@ -215,5 +218,111 @@ private struct ClaudeSettings: View {
         } else {
             NSWorkspace.shared.open(config.deletingLastPathComponent())
         }
+    }
+}
+
+/// The shopping list in «Напоминания»: the list, how items read there, and what comes back from the family.
+private struct RemindersSettings: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if let reminders = model.reminders {
+            RemindersForm(reminders: reminders)
+        } else {
+            Form {
+                Text("База данных не открылась.")
+            }
+            .formStyle(.grouped)
+        }
+    }
+}
+
+private struct RemindersForm: View {
+    @Bindable var reminders: RemindersModel
+    @AppStorage(ShoppingScreen.stocksWithoutAskingKey) private var stocksWithoutAsking = false
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(
+                    "Синхронизировать список покупок",
+                    isOn: Binding(
+                        get: { reminders.settings.isEnabled },
+                        set: { isOn in
+                            if isOn {
+                                Task { await reminders.enable() }
+                            } else {
+                                reminders.disable()
+                            }
+                        }))
+                if reminders.settings.isEnabled {
+                    Picker("Список", selection: $reminders.settings.listID) {
+                        Text("Не выбран").tag(String?.none)
+                        ForEach(reminders.lists) { list in
+                            Text("\(list.title) — \(list.account)").tag(String?.some(list.id))
+                        }
+                    }
+                    Button("Создать список «Покупки»") { reminders.createList() }
+                    if reminders.settings.listID != nil {
+                        HStack {
+                            Button("Синхронизировать сейчас") { Task { await reminders.syncNow() } }
+                                .disabled(reminders.isSyncing)
+                            Spacer()
+                            Text(status)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if let problem = reminders.problem {
+                    Text(problem)
+                        .foregroundStyle(Color(.statusMissing))
+                }
+            } header: {
+                Text("«Напоминания»")
+            } footer: {
+                Text(
+                    "Список из iCloud виден на iPhone. Чтобы он был и у семьи, откройте его в «Напоминаниях» и выберите «Поделиться списком» — открыть доступ можно только там. Что отмечено в магазине, станет купленным здесь; что добавили родные — появится в покупках."
+                )
+                .foregroundStyle(.secondary)
+            }
+            if reminders.settings.isEnabled {
+                Section("Как выглядят пункты") {
+                    Picker("Заголовок", selection: $reminders.settings.titleStyle) {
+                        Text("«Молоко — 1 л»").tag(ReminderSettings.TitleStyle.nameAndAmount)
+                        Text("«Молоко», количество в заметке").tag(ReminderSettings.TitleStyle.nameOnly)
+                    }
+                    Toggle("Эмодзи отдела в начале — для сортировки по названию", isOn: $reminders.settings.aisleEmoji)
+                    Toggle("В заметке — для каких блюд", isOn: $reminders.settings.notesDishes)
+                    Toggle("…и на какие дни", isOn: $reminders.settings.notesDays)
+                        .disabled(!reminders.settings.notesDishes)
+                    Picker("Срок — день закупки", selection: $reminders.settings.shoppingWeekday) {
+                        Text("Без срока").tag(Int?.none)
+                        ForEach(1...7, id: \.self) { weekday in
+                            Text(Self.weekdays[weekday - 1]).tag(Int?.some(weekday))
+                        }
+                    }
+                }
+                Section("Купленное и пункты родных") {
+                    Picker("Убирать купленное", selection: $reminders.settings.clearBoughtAfterDays) {
+                        Text("Только кнопкой «Очистить купленное»").tag(Int?.none)
+                        Text("Через день").tag(Int?.some(1))
+                        Text("Через 3 дня").tag(Int?.some(3))
+                        Text("Через неделю").tag(Int?.some(7))
+                    }
+                    Toggle("Принимать пункты, которые добавили родные", isOn: $reminders.settings.acceptsFamilyItems)
+                    Toggle("Пополнять запасы без вопросов", isOn: $stocksWithoutAsking)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { reminders.refreshLists() }
+    }
+
+    static let weekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+
+    private var status: String {
+        if reminders.isSyncing { return "синхронизируется…" }
+        guard let date = reminders.lastSync else { return "ещё не синхронизировался" }
+        return "в \(date.formatted(.dateTime.hour().minute().locale(Formatting.locale)))"
     }
 }
