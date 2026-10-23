@@ -20,6 +20,7 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 | `make format` / `make lint` | `swift-format` из тулчейна, настройки — в `.swift-format` |
 | `make perf` | Бюджет списков в оптимизированной сборке на 20 000 продуктов и 5 000 рецептов: первый блок быстрее 50 мс, поиск и сортировка быстрее 100 мс |
 | `make seed USDA=<папка>` | Пересобрать начальную базу продуктов из `Tools/seed/catalog.py` и USDA SR Legacy (CSV) |
+| `make icon` | Перерисовать иконку приложения (`Tools/icon/draw_icon.swift`) во всех размерах |
 | `make clean` | Удалить `build/` и `.build/` пакета |
 
 `.xcodeproj` не хранится в git. После правки `project.yml`, добавления или удаления файлов — `make project`. Настройки сборки меняем только в `project.yml`: правки в интерфейсе Xcode сотрёт следующая генерация. Сборки из терминала лежат в `build/DerivedData`.
@@ -67,7 +68,8 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 
 - Приложение — `LSUIElement`: значок в строке меню есть всегда, в Dock и переключателе приложений оно видно, пока открыто окно (`windowDidOpen` и `windowDidClose` меняют политику активации). Закрытие окна приложение не завершает; ⌘Q и «Выйти» в меню значка — завершают.
 - Окно — `.defaultLaunchBehavior(.suppressed)` и `.restorationBehavior(.disabled)`: открывает его `AppModel` действием, которое передаёт значок в строке меню (`windowActionsArrived`), — единственное представление, которое существует всегда. Запуск человеком открывает окно; запуск при входе в систему (в событии запуска `keyAELaunchedAsLogInItem`) — нет. Повторный запуск из Finder или Spotlight показывает окно.
-- Вход в систему — `LoginItem` (`SMAppService.mainApp`), Настройки → Основные → «Работа в фоне». Имеет смысл у копии в /Applications: путь Debug-сборки в DerivedData меняется с каждой сборкой.
+- Вход в систему — `LoginItem` (`SMAppService.mainApp`), Настройки → Основные → «Работа в фоне». Имеет смысл у копии в /Applications: путь Debug-сборки в DerivedData меняется с каждой сборкой. Копия в /Applications при первом запуске включает его сама, один раз (`turnsOnLoginItem`, ключ `loginItem.turnedOnOnce`); дальше решает пользователь.
+- Иконка — `AppIcon` (у Debug — `AppIconDebug`, та же на синем). Рисует её `Tools/icon/draw_icon.swift`, `make icon` пишет все размеры в каталог; картинка во весь квадрат, углы скругляет macOS. Руками PNG не правим.
 - В фоне идут синхронизация с «Напоминаниями» и ежедневное обслуживание (`maintainDaily`: раз в час проверяет смену дня, тогда — копия, корзина, брошенные фото). Пока синхронизация включена, `RemindersModel` держит активность `userInitiatedAllowingIdleSystemSleep`, иначе App Nap откладывает раунды.
 - Ссылки `mealplanner://` (из напоминаний) приходят Apple-событием в `AppDelegate`; `shopping/…` открывает покупки.
 - Под тестами (`XCTest*` в окружении, `AppModel.isRunningTests`) приложение не открывает окно, не синхронизирует и не убирает данные.

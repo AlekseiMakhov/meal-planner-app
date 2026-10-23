@@ -6,6 +6,7 @@ PACKAGE  := Packages/MealKit
 DERIVED  := build/DerivedData
 PRODUCTS := $(DERIVED)/Build/Products
 APP      := MealPlanner.app
+ICONS    := Apps/MealPlanner/Resources/Assets.xcassets
 MCP_TOOL := Contents/Helpers/meal-planner-mcp
 
 # Automatic signing (team 6S43T3N4UL) may need to register the App ID or this Mac.
@@ -16,7 +17,7 @@ XCODEBUILD := xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
 SWIFT_SOURCES := Apps $(PACKAGE)/Package.swift $(PACKAGE)/Sources $(PACKAGE)/Tests
 
 .DEFAULT_GOAL := build
-.PHONY: project build test test-package test-app run install mcp-inspect format lint perf seed clean
+.PHONY: project build test test-package test-app run install mcp-inspect format lint perf seed icon clean
 
 project:
 	xcodegen generate --use-cache --quiet
@@ -41,6 +42,10 @@ install: project
 	rm -rf "/Applications/$(APP)"
 	ditto "$(PRODUCTS)/Release/$(APP)" "/Applications/$(APP)"
 	open "/Applications/$(APP)"
+
+icon:
+	swift Tools/icon/draw_icon.swift "$(ICONS)/AppIcon.appiconset" release
+	swift Tools/icon/draw_icon.swift "$(ICONS)/AppIconDebug.appiconset" debug
 
 mcp-inspect: build
 	npx -y @modelcontextprotocol/inspector "$(PRODUCTS)/Debug/$(APP)/$(MCP_TOOL)"

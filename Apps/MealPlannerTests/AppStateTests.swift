@@ -49,6 +49,15 @@ struct AppStateTests {
         #expect(opened == ["person"], "once, whichever comes first")
     }
 
+    @Test func onlyTheInstalledCopyTurnsOnLoginByItselfAndOnce() {
+        let installed = URL(filePath: "/Applications/MealPlanner.app", directoryHint: .isDirectory)
+        let built = URL(filePath: "/Users/me/build/Release/MealPlanner.app", directoryHint: .isDirectory)
+        #expect(AppModel.turnsOnLoginItem(bundle: installed, isDebug: false, done: false))
+        #expect(!AppModel.turnsOnLoginItem(bundle: installed, isDebug: false, done: true), "the user's choice stands")
+        #expect(!AppModel.turnsOnLoginItem(bundle: installed, isDebug: true, done: false))
+        #expect(!AppModel.turnsOnLoginItem(bundle: built, isDebug: false, done: false))
+    }
+
     @Test func aReminderLinkOpensTheShoppingList() throws {
         let model = AppModel()
         model.open(try #require(URL(string: "mealplanner-debug://shopping/12")))

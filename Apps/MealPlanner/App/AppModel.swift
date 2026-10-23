@@ -184,6 +184,23 @@ final class AppModel {
     func launched(atLogin: Bool) {
         opensWindowAtLaunch = !atLogin
         openWindowAtLaunch()
+        let defaults = UserDefaults.standard
+        if Self.turnsOnLoginItem(
+            bundle: Bundle.main.bundleURL, isDebug: Self.isDebugBuild,
+            done: defaults.bool(forKey: Self.loginItemDoneKey))
+        {
+            defaults.set(true, forKey: Self.loginItemDoneKey)
+            loginItem.set(true)
+        }
+    }
+
+    /// Set once the installed copy has turned on opening at login by itself.
+    nonisolated static let loginItemDoneKey = "loginItem.turnedOnOnce"
+
+    /// The copy in /Applications runs as a service: on its first run it turns on opening at login, once. After
+    /// that the choice in Settings stands. A Debug build lives in DerivedData and never does.
+    nonisolated static func turnsOnLoginItem(bundle: URL, isDebug: Bool, done: Bool) -> Bool {
+        !done && !isDebug && bundle.path(percentEncoded: false).hasPrefix("/Applications/")
     }
 
     /// The menu bar icon hands over the actions that open windows.
