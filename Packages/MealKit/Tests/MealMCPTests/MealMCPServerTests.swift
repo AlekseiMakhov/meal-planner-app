@@ -79,7 +79,9 @@ struct MealMCPServerTests {
         #expect(status["database"]?["exists"]?.boolValue == true)
         #expect(
             status["database"]?["migrations"]
-                == .array(["products", "seed: products 1", "recipes", "pantry", "planner", "reminders"]))
+                == .array([
+                    "products", "seed: products 1", "recipes", "pantry", "planner", "reminders", "pantry minimum",
+                ]))
         #expect((status["database"]?["products"]?.intValue ?? 0) > 300)
         #expect(status["database"]?["recipes"]?.intValue == 0)
     }

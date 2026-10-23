@@ -72,9 +72,11 @@ extension AppDatabase {
             guard try ProductRecord.exists(db, key: productID) else { throw StoreError("Продукта больше нет.") }
             let old = try PantryItemRecord.fetchOne(db, key: productID)
             let item = PantryItem(
-                productID: productID, quantity: quantity, isLow: isLow ?? old?.isLow ?? false, updatedAt: .now)
+                productID: productID, quantity: quantity, isLow: isLow ?? old?.isLow ?? false, minimum: old?.minimum,
+                updatedAt: .now)
             try PantryItemRecord(item).upsert(db)
             try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: productID, db))
+            try Self.restock([productID], db)
             return item
         }
     }
@@ -99,6 +101,56 @@ extension AppDatabase {
             try PantryItemRecord(item).upsert(db)
         }
         try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: Array(amounts.keys), db))
+        try restock(Array(amounts.keys), db)
+    }
+
+    /// «Держать дома»: what to keep of the product, in its base unit; nil — no minimum. Below it, the rest goes on
+    /// the shopping list.
+    public func setPantryMinimum(_ minimum: Double?, productID: Product.ID) throws {
+        if let minimum, minimum < 0 {
+            throw StoreError("Количество не бывает отрицательным.")
+        }
+        try writer.write { db in
+            var item =
+                try PantryItemRecord.fetchOne(db, key: productID)?.item ?? PantryItem(productID: productID, quantity: 0)
+            item.minimum = minimum.flatMap { $0 > 0 ? $0 : nil }
+            item.updatedAt = .now
+            try PantryItemRecord(item).upsert(db)
+            try Self.restock([productID], db)
+        }
+    }
+
+    /// The reason a product below its minimum is on the list.
+    public static let keepAtHome = ShoppingReason(title: "Держать дома")
+
+    /// Products below «держать дома» get the rest on the shopping list; one already there for that reason is set to
+    /// what is missing now, and goes once there is enough again.
+    static func restock(_ productIDs: some Collection<Product.ID>, _ db: Database) throws {
+        for productID in Set(productIDs) {
+            guard let item = try PantryItemRecord.fetchOne(db, key: productID)?.item,
+                let product = try ProductRecord.fetchOne(db, key: productID)?.product
+            else { continue }
+            let open = try ShoppingItemRecord.filter(Column("productId") == productID && Column("checkedAt") == nil)
+                .fetchAll(db)
+            guard let missing = item.shortOfMinimum else {
+                for mine in open where mine.reasons == [keepAtHome] {
+                    try mine.delete(db)
+                }
+                continue
+            }
+            if var mine = open.first(where: { $0.reasons == [keepAtHome] }) {
+                mine.amount = missing
+                mine.unit = product.baseUnit.unit.rawValue
+                try mine.update(db)
+            } else if open.isEmpty {
+                _ = try addToShopping(
+                    [
+                        ShoppingAddition(
+                            product: productID, amount: missing, unit: product.baseUnit.unit, reason: keepAtHome)
+                    ],
+                    db)
+            }
+        }
     }
 
     /// Takes amounts out of the pantry: what a dish used. What is not counted stays as it is; nothing goes below
@@ -116,6 +168,7 @@ extension AppDatabase {
             try PantryItemRecord(item).upsert(db)
         }
         try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: Array(amounts.keys), db))
+        try restock(Array(amounts.keys), db)
     }
 
     /// Marks the product as running low, or not.

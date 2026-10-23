@@ -97,17 +97,19 @@ struct PantryItemRecord: Codable, FetchableRecord, PersistableRecord {
     var productId: Int64
     var quantity: Double?
     var isLow: Bool
+    var minimum: Double?
     var updatedAt: Date
 
     init(_ item: PantryItem) {
         productId = item.productID
         quantity = item.quantity
         isLow = item.isLow
+        minimum = item.minimum
         updatedAt = item.updatedAt
     }
 
     var item: PantryItem {
-        PantryItem(productID: productId, quantity: quantity, isLow: isLow, updatedAt: updatedAt)
+        PantryItem(productID: productId, quantity: quantity, isLow: isLow, minimum: minimum, updatedAt: updatedAt)
     }
 }
 

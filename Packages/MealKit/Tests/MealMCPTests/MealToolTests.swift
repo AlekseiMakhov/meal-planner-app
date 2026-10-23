@@ -395,3 +395,21 @@ struct PlannerToolTests {
                 "Нет приёма"))
     }
 }
+
+struct PantryMinimumToolTests {
+    @Test func aMinimumPutsTheRestOnTheList() async throws {
+        let fixture = try ToolFixture()
+        let set = try await fixture.call(
+            "set_pantry", ["items": [["product": "яйца", "quantity": 4, "minimum": 10]]])
+        #expect(set["items"]?[0]?["minimum"]?.intValue == 10)
+        #expect(set["items"]?[0]?["status"]?.stringValue == "low")
+        let list = try await fixture.call("get_shopping_list")
+        #expect(list["items"]?[0]?["name"]?.stringValue == "Яйцо куриное")
+        #expect(list["items"]?[0]?["amount"]?.intValue == 6)
+        #expect(list["items"]?[0]?["for"]?[0]?["title"]?.stringValue == "Держать дома")
+        // Only the minimum: the amount at home stays.
+        _ = try await fixture.call("set_pantry", ["items": [["product": "яйца", "minimum": 0]]])
+        #expect(try await fixture.call("get_pantry")["items"]?[0]?["quantity"]?.intValue == 4)
+        #expect(try await fixture.call("get_shopping_list")["total"]?.intValue == 0)
+    }
+}

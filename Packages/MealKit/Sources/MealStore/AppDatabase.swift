@@ -123,6 +123,11 @@ public struct AppDatabase: Sendable {
                 table.primaryKey("reminderId", .text)
             }
         }
+        migrator.registerMigration("pantry minimum") { db in
+            try db.alter(table: "pantry_item") { table in
+                table.add(column: "minimum", .double)
+            }
+        }
         return migrator
     }
 

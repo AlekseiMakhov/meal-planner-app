@@ -110,6 +110,7 @@ enum ToolOutput {
             "unit": .string(entry.product.baseUnit.rawValue),
             "status": .string(status(entry.item.status)),
             "low": .bool(entry.item.isLow),
+            "minimum": number(entry.item.minimum, places: 2),
             "staple": .bool(entry.product.isStaple),
             "updated_at": time(entry.item.updatedAt),
         ])

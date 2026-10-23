@@ -41,6 +41,11 @@ extension MealTools {
                             "quantity": ["type": "number", "description": "Сколько есть."],
                             "unit": .object(["type": "string", "description": .string(unitDescription)]),
                             "low": ["type": "boolean", "description": "Заканчивается."],
+                            "minimum": [
+                                "type": "number",
+                                "description":
+                                    "Держать дома не меньше, в основной единице продукта; ниже — недостающее само идёт в покупки. 0 — не следить.",
+                            ],
                         ],
                     ],
                     "description": "Продукты и их количество.",
@@ -200,7 +205,12 @@ extension MealTools {
             if let amount = try item.double("quantity") {
                 quantity = try baseAmount(amount, try item.nonEmpty("unit"), of: product, notes: &notes)
             }
-            try database.setPantry(product.id, quantity: quantity, isLow: try item.bool("low"))
+            if item.has("quantity") || !item.has("minimum") {
+                try database.setPantry(product.id, quantity: quantity, isLow: try item.bool("low"))
+            }
+            if let minimum = try item.double("minimum") {
+                try database.setPantryMinimum(minimum, productID: product.id)
+            }
             changed.append(product.id)
         }
         var removed: [String] = []

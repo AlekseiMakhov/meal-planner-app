@@ -6,13 +6,18 @@ import MealCore
 enum PantryListSQL {
     /// The pantry item has some: a counted amount above zero, or some uncounted.
     static let inStock = "(pantry_item.quantity IS NULL OR pantry_item.quantity > \(PantryItem.tolerance))"
+    /// Counted, and under what is to be kept at home.
+    static let belowMinimum = """
+        (pantry_item.minimum IS NOT NULL AND pantry_item.quantity IS NOT NULL \
+        AND pantry_item.quantity + \(PantryItem.tolerance) < pantry_item.minimum)
+        """
 
     static func page(_ db: Database, _ query: PantryQuery, limit: Int, offset: Int = 0) throws -> ListPage<PantryEntry>
     {
         let rows = try SQLRequest<Row>(
             literal: """
                 SELECT product.*, pantry_item.quantity AS pantryQuantity, pantry_item.isLow AS pantryLow,
-                pantry_item.updatedAt AS pantryUpdatedAt
+                pantry_item.minimum AS pantryMinimum, pantry_item.updatedAt AS pantryUpdatedAt
                 """ + " " + source(query) + " ORDER BY " + order(query) + " LIMIT \(limit) OFFSET \(offset)"
         ).fetchAll(db)
         let entries = try rows.map { row in
@@ -21,7 +26,7 @@ enum PantryListSQL {
                 product: product,
                 item: PantryItem(
                     productID: product.id, quantity: row["pantryQuantity"], isLow: row["pantryLow"],
-                    updatedAt: row["pantryUpdatedAt"]))
+                    minimum: row["pantryMinimum"], updatedAt: row["pantryUpdatedAt"]))
         }
         let total = try SQLRequest<Int>(literal: "SELECT COUNT(*) " + source(query)).fetchOne(db) ?? 0
         return ListPage(rows: entries, total: total)
@@ -55,8 +60,8 @@ enum PantryListSQL {
         if !query.statuses.isEmpty {
             let statuses: [SQL] = query.statuses.sorted { $0.rawValue < $1.rawValue }.map { status in
                 switch status {
-                case .inStock: SQL(sql: inStock + " AND NOT pantry_item.isLow")
-                case .low: SQL(sql: inStock + " AND pantry_item.isLow")
+                case .inStock: SQL(sql: inStock + " AND NOT pantry_item.isLow AND NOT " + belowMinimum)
+                case .low: SQL(sql: inStock + " AND (pantry_item.isLow OR " + belowMinimum + ")")
                 case .out: SQL(sql: "NOT " + inStock)
                 }
             }

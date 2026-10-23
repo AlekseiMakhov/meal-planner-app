@@ -14,6 +14,8 @@ struct PantryScreen: View {
     @State private var picking: Pick?
     @State private var notice: String?
     @State private var problem: String?
+    @State private var keeping: PantryEntry?
+    @State private var keepText = ""
 
     /// A product to choose for a typed line the base did not settle: none or several fit.
     struct Pick: Identifiable {
@@ -83,6 +85,22 @@ struct PantryScreen: View {
                 add(product, amount: pick.amount, unit: pick.unit)
             }
         }
+        .alert(
+            "Держать дома: \(keeping?.product.name ?? "")", isPresented: isPresent($keeping), presenting: keeping
+        ) { entry in
+            TextField(entry.product.baseUnit.unit.symbol, text: $keepText)
+            Button("Сохранить") {
+                let value = Double(
+                    keepText.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces))
+                run { try database.setPantryMinimum(value, productID: entry.product.id) }
+            }
+            Button("Не следить") { run { try database.setPantryMinimum(nil, productID: entry.product.id) } }
+            Button("Отмена", role: .cancel) {}
+        } message: { entry in
+            Text(
+                "Сколько держать дома, в \(entry.product.baseUnit.unit.symbol). Когда станет меньше, недостающее само попадёт в покупки."
+            )
+        }
         .alert("Не получилось", isPresented: isPresent($problem), presenting: problem) { _ in
             Button("Понятно") {}
         } message: { problem in
@@ -128,6 +146,10 @@ struct PantryScreen: View {
                 run { try database.setLow(!entry.item.isLow, productID: entry.product.id) }
             }
             Button("Закончилось") { run { try database.setPantry(entry.product.id, quantity: 0) } }
+            Button("Держать дома…") {
+                keepText = entry.item.minimum.map { Formatting.number($0, digits: 2) } ?? ""
+                keeping = entry
+            }
             Divider()
             Button("Убрать из запасов", role: .destructive) {
                 run { try database.removeFromPantry([entry.product.id]) }
@@ -269,6 +291,11 @@ struct PantryRow: View {
                 .labelsHidden()
                 .fixedSize()
             } else {
+                if let minimum = entry.item.minimum {
+                    Text("держать \(Formatting.quantity(minimum, entry.product.baseUnit.unit))")
+                        .font(.caption)
+                        .foregroundStyle(entry.item.isBelowMinimum ? Color(.statusLow) : Color(.textSecondary))
+                }
                 QuantityField(value: entry.item.quantity, unit: entry.product.baseUnit.unit, commit: setQuantity)
             }
             Toggle(isOn: Binding(get: { entry.item.isLow }, set: { setLow($0) })) {

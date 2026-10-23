@@ -8,12 +8,18 @@ public struct PantryItem: Identifiable, Hashable, Sendable {
     public var quantity: Double?
     /// Marked «заканчивается».
     public var isLow: Bool
+    /// «Держать дома»: below this, in the base unit, the product runs low and the rest goes to the shopping list.
+    public var minimum: Double?
     public var updatedAt: Date
 
-    public init(productID: Product.ID, quantity: Double? = nil, isLow: Bool = false, updatedAt: Date = .now) {
+    public init(
+        productID: Product.ID, quantity: Double? = nil, isLow: Bool = false, minimum: Double? = nil,
+        updatedAt: Date = .now
+    ) {
         self.productID = productID
         self.quantity = quantity
         self.isLow = isLow
+        self.minimum = minimum
         self.updatedAt = updatedAt
     }
 
@@ -27,7 +33,17 @@ public struct PantryItem: Identifiable, Hashable, Sendable {
     }
 
     public var status: PantryStatus {
-        isInStock ? (isLow ? .low : .inStock) : .out
+        isInStock ? (isLow || isBelowMinimum ? .low : .inStock) : .out
+    }
+
+    /// How much is missing to «держать дома»; nil when there is enough, or no minimum, or no count.
+    public var shortOfMinimum: Double? {
+        guard let minimum, minimum > 0, let quantity, quantity + Self.tolerance < minimum else { return nil }
+        return minimum - quantity
+    }
+
+    public var isBelowMinimum: Bool {
+        shortOfMinimum != nil
     }
 
     /// Amounts closer than this count as equal: what is left of 0,3 + 0,7 − 1 is no stock.

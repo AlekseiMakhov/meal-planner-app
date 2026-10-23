@@ -218,3 +218,34 @@ struct PantryStoreTests {
         #expect(item.isInStock)
     }
 }
+
+struct PantryMinimumTests {
+    @Test func belowWhatIsKeptAtHomeTheRestGoesOnTheList() throws {
+        let fixture = try Fixture()
+        var eggs = try fixture.add("Яйцо куриное", aisle: "Молочное")
+        eggs.baseUnit = .piece
+        eggs = try fixture.database.save(eggs)
+        try fixture.database.setPantry(eggs.id, quantity: 12)
+        try fixture.database.setPantryMinimum(10, productID: eggs.id)
+        #expect(try fixture.database.pantryItem(productID: eggs.id)?.status == .inStock)
+        #expect(try fixture.database.shopping(ShoppingQuery(), limit: 10).total == 0)
+
+        try fixture.database.takeFromPantry([eggs.id: 5])
+        #expect(try fixture.database.pantryItem(productID: eggs.id)?.status == .low)
+        var list = try fixture.database.shopping(ShoppingQuery(), limit: 10).rows
+        #expect(list.map(\.item.amount) == [3])
+        #expect(list.first?.item.reasons == [AppDatabase.keepAtHome])
+
+        // Lower still: the same line says what is missing now.
+        try fixture.database.takeFromPantry([eggs.id: 4])
+        list = try fixture.database.shopping(ShoppingQuery(), limit: 10).rows
+        #expect(list.map(\.item.amount) == [7])
+        #expect(try fixture.database.pantry(PantryQuery(statuses: [.low]), limit: 10).total == 1)
+
+        // Enough again: the line goes.
+        try fixture.database.addToPantry([eggs.id: 10])
+        #expect(try fixture.database.shopping(ShoppingQuery(), limit: 10).total == 0)
+        try fixture.database.setPantryMinimum(nil, productID: eggs.id)
+        #expect(try fixture.database.pantryItem(productID: eggs.id)?.minimum == nil)
+    }
+}
