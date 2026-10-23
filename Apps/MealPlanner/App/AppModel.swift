@@ -81,6 +81,28 @@ final class AppModel {
         AppIdentity.isDebug(bundleID: Bundle.main.bundleIdentifier ?? "")
     }
 
+    /// Settings → «Основные»: copies go to iCloud Drive instead of the data folder.
+    nonisolated static let backupsInICloudKey = "backups.iCloud"
+
+    nonisolated static let iCloudDrive = FileManager.default.homeDirectoryForCurrentUser.appending(
+        path: "Library/Mobile Documents/com~apple~CloudDocs", directoryHint: .isDirectory)
+
+    /// Daily copies of the database: in the data folder, or in iCloud Drive when Settings say so and it is there.
+    nonisolated static func backups(dataDirectory: URL) -> Backups {
+        let iCloud =
+            UserDefaults.standard.bool(forKey: backupsInICloudKey)
+            && FileManager.default.fileExists(atPath: iCloudDrive.path(percentEncoded: false))
+        let folder =
+            iCloud
+            ? iCloudDrive.appending(path: "Meal Planner/Резервные копии", directoryHint: .isDirectory)
+            : dataDirectory.appending(path: "Backups", directoryHint: .isDirectory)
+        return Backups(folder: folder)
+    }
+
+    var backups: Backups? {
+        dataDirectory.map(Self.backups)
+    }
+
     /// The folder Claude Code sessions open in, with instructions on the data.
     var claudeWorkspace: ClaudeWorkspace? {
         dataDirectory.map { ClaudeWorkspace(dataDirectory: $0) }
@@ -105,6 +127,11 @@ final class AppModel {
             Task.detached(priority: .background) {
                 _ = try? database.emptyTrash()
                 _ = try? database.removeUnusedImages()
+                do {
+                    try Self.backups(dataDirectory: dataDirectory).backUp(database)
+                } catch {
+                    Self.log.error("Daily backup failed: \(error, privacy: .public)")
+                }
             }
             watchExternalChanges(database)
             reminders = RemindersModel(database: database)

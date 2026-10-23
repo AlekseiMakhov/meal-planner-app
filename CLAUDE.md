@@ -140,6 +140,7 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 
 - База — `AppDatabase` (GRDB): `~/Library/Application Support/inco.mealplanner/meals.sqlite`, у Debug — папка `inco.mealplanner.debug`. И приложение, и MCP-сервер пишут через `DatabasePool` (WAL) с ожиданием блокировки до 5 секунд.
 - Схема меняется только новой миграцией в `AppDatabase.migrator`; уже применённые миграции не редактируем. Сейчас: `products`, `seed: products 1`, `recipes`, `pantry`, `planner`, `reminders`.
+- Резервные копии — `Backups`: раз в день при запуске `VACUUM INTO` в `Backups/meals-ГГГГ-ММ-ДД.sqlite` рядом с базой (или в iCloud Drive, если так в Настройках), хранятся 14 последних. Фото не копируются.
 - `AppDatabase.inMemory()` — пустая база для тестов (фото — во временной папке), `inMemory(seeded: true)` — с начальной базой.
 
 ## MCP

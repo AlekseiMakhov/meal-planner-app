@@ -30,6 +30,9 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
     @AppStorage(ShoppingScreen.stocksWithoutAskingKey) private var stocksWithoutAsking = false
+    @AppStorage(AppModel.backupsInICloudKey) private var backupsInICloud = false
+    @State private var lastCopy: URL?
+    @State private var backupMessage: String?
 
     var body: some View {
         Form {
@@ -61,8 +64,45 @@ private struct GeneralSettings: View {
                 }
             }
             LabeledContent("Версия", value: version)
+            Section {
+                Toggle("Хранить копии в iCloud Drive", isOn: $backupsInICloud)
+                    .disabled(!FileManager.default.fileExists(atPath: AppModel.iCloudDrive.path(percentEncoded: false)))
+                LabeledContent(
+                    "Последняя копия", value: lastCopy.map { $0.deletingPathExtension().lastPathComponent } ?? "ещё нет"
+                )
+                HStack {
+                    Button("Сделать копию сейчас", action: backUpNow)
+                    Button("Показать в Finder") {
+                        guard let backups = model.backups else { return }
+                        try? FileManager.default.createDirectory(at: backups.folder, withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(backups.folder)
+                    }
+                }
+                if let backupMessage {
+                    Text(backupMessage).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Резервные копии")
+            } footer: {
+                Text(
+                    "Копия базы делается раз в день при запуске, хранятся последние 14. Фото лежат отдельно, в папке Images рядом с базой. Чтобы вернуть копию, закройте приложение и положите её вместо meals.sqlite в папке с данными."
+                )
+                .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+        .onAppear { lastCopy = model.backups?.copies().first }
+        .onChange(of: backupsInICloud) { lastCopy = model.backups?.copies().first }
+    }
+
+    private func backUpNow() {
+        guard let backups = model.backups, let database = model.database else { return }
+        do {
+            lastCopy = try backups.backUp(database, force: true)
+            backupMessage = "Копия сохранена."
+        } catch {
+            backupMessage = "Копия не сохранилась: \(error)"
+        }
     }
 
     private var version: String {
