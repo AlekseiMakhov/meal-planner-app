@@ -2,7 +2,7 @@
 
 ## Что это
 
-Meal Planner & Recipes — macOS-приложение: рецепты с КБЖУ, база продуктов, запасы дома, список покупок и меню на неделю. Данные доступны Claude Desktop и Claude Code через MCP. Готовы этапы 0 (каркас), 1 (продукты и единицы) и 2 (рецепты и категории).
+Meal Planner & Recipes — macOS-приложение: рецепты с КБЖУ, база продуктов, запасы дома, список покупок и меню на неделю. Данные доступны Claude Desktop и Claude Code через MCP. Готовы этапы 0 (каркас), 1 (продукты и единицы), 2 (рецепты и категории) и 3 (MCP и Claude).
 
 - Замысел, решения и этапы — [plan-meal-planner.md](plan-meal-planner.md). Решения оттуда не пересматриваем без явной просьбы; новое решение сначала вносим в план.
 
@@ -33,13 +33,14 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
   - `Screens/Products` — экран продуктов;
   - `Screens/Recipes` — галерея, таблица КБЖУ, фильтры, корзина;
   - `Screens/Recipe` — страница рецепта и её редактор, ингредиенты, фото, видео и превью ссылок;
+  - `System` — связь с Claude: конфиг Claude Desktop (`ClaudeConnection`), кнопки «… с Claude» (`ClaudeHandoff`), папка с CLAUDE.md для сессий Claude Code (`ClaudeWorkspace`);
   - `Settings`, `Resources` (`Assets.xcassets` с цветовыми токенами, `Localizable.xcstrings`).
 - `Apps/MCPServer` — точка входа `meal-planner-mcp`; утилита встраивается в `MealPlanner.app/Contents/Helpers/`.
 - `Apps/MealPlannerTests` — тесты, которым нужен собранный бандл приложения.
 - `Packages/MealKit` — вся логика:
-  - `MealCore` — модели и логика: единицы и пересчёты (`MeasureUnit`, `UnitProfile`), КБЖУ (`Nutrition`, `NutritionTotal`, `RecipeNutrition`), продукт и рецепт (`RecipeDetails`), разбор строк ингредиентов (`IngredientParser`), видео (`VideoEmbed`), поиск (`SearchText`, `RussianStemmer`), запросы списков (`ProductQuery`, `RecipeQuery`, `SortTerm`, `ListPage`), общие имена (`AppIdentity`). Только Foundation: без AppKit, SwiftUI и GRDB.
-  - `MealStore` → `MealCore`, GRDB: схема, миграции, начальная база (`Seed/`), запросы списков в SQL, кеш рецептов (`RecipeDerived`), фото (`ImageStore`), `PagedList`.
-  - `MealMCP` → `MealCore`, `MealStore`, MCP SDK: инструменты для Claude.
+  - `MealCore` — модели и логика: единицы и пересчёты (`MeasureUnit`, `UnitProfile`), КБЖУ (`Nutrition`, `NutritionTotal`, `RecipeNutrition`), продукт и рецепт (`RecipeDetails`), разбор строк ингредиентов (`IngredientParser`), видео (`VideoEmbed`), поиск (`SearchText`, `RussianStemmer`), запросы списков (`ProductQuery`, `RecipeQuery`, `SortTerm`, `ListPage`), общие имена (`AppIdentity`), запросы к Claude (`ClaudeRequest`: тексты промптов MCP и кнопок «… с Claude»). Только Foundation: без AppKit, SwiftUI и GRDB.
+  - `MealStore` → `MealCore`, GRDB: схема, миграции, начальная база (`Seed/`), запросы списков в SQL, кеш рецептов (`RecipeDerived`), фото (`ImageStore`), `PagedList`, уведомления о записи из другого процесса (`ExternalChanges`).
+  - `MealMCP` → `MealCore`, `MealStore`, MCP SDK: инструменты (`MealTools` и расширения `ProductTools`, `CategoryTools`, `RecipeTools`), разбор аргументов (`Arguments`), вид ответов (`ToolOutput`), промпты (`MealPrompts`).
   - `MealReminders` (EventKit) появится на этапе 6.
 - `Tools/seed` — каталог начальной базы и её сборка.
 
@@ -116,6 +117,15 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 ## MCP
 
 - Сервер `meal-planner` (`MealMCPServer`), транспорт stdio. Без аргументов внутри бандла работает с данными своего приложения (Debug — со своими); `--directory <папка>` — с указанной.
-- Пока есть один инструмент — `get_status`, и он не создаёт базу, если её ещё нет. Инструменты для рецептов и продуктов появятся на этапе 3.
-- Новый инструмент: определение в `MealTools.all`, ветка в `MealTools.call`, тесты в `MealMCPTests`. `PackagingTests` проверяет, что встроенный в бандл сервер отвечает по stdio.
-- До этапа 3 сервер подключается к Claude вручную — см. README.
+- Инструменты: `get_status` (не создаёт базу, если её ещё нет), `list_aisles`; продукты — `search_products`, `get_product`, `upsert_product`, `merge_products`; категории — `list_categories`, `create_category`, `update_category`, `delete_category`; рецепты — `search_recipes`, `get_recipe`, `create_recipe`, `update_recipe`, `delete_recipe` (в корзину), `set_recipe_image`. Промпты — `import_recipe`, `fill_recipe`, `fill_nutrition`, `migrate_from_notion`; их тексты и тексты кнопок «… с Claude» — одни и те же, в `ClaudeRequest`.
+- Ответы — JSON со snake_case; ошибка вызова — `isError` и текст, по которому Claude может исправить вызов (`ToolError`, `StoreError`). Списки — `limit` (до 100) и `cursor` из `next_cursor` (это смещение).
+- Ингредиенты в `create_recipe` и `update_recipe` — строка (разбирает `IngredientParser`, продукт должен быть в базе) или объект `{name | product_id, amount, amount_max, unit, note, optional, group}`. Продукт ищется `matchProduct`: точное имя или синоним, иначе поиск; из нескольких найденных берётся тот, чьё имя или синоним — те же слова («сахара» → «Сахар»). Если строка подходит к нескольким продуктам или строки нет в базе, не пишется ничего; новые продукты из объектов и новые категории создаются только после проверки всех строк, а при ошибке сохранения удаляются. Ответ называет `created_products`, `created_categories` и `matched_by_search`.
+- Рецепт из Claude сохраняется одной транзакцией (`newRecipe(from:)`); `update_recipe` меняет только переданные поля, `unset` очищает поля, фото по `image_url` скачивается до записи, и рецепт сохраняется, даже если фото не скачалось (`image_problem`).
+- После каждой записи сервер шлёт Darwin-уведомление `inco.mealplanner.changed` (`ExternalChanges`); приложение вызывает `notifyExternalChanges()`, и его `ValueObservation` перечитывают данные. При возвращении приложения на передний план сверяется `PRAGMA data_version` — на случай пропущенного уведомления.
+- Новый инструмент: определение в одном из массивов `MealTools.all`, ветка в `MealTools.call` (запись отмечается как изменение), тесты в `MealMCPTests` (`ToolFixture` — сервер над временной папкой с начальной базой). `PackagingTests` проверяет, что встроенный в бандл сервер отвечает по stdio.
+
+## Claude в приложении
+
+- Настройки → Claude: сервер в `claude_desktop_config.json` (прежний файл сохраняется рядом с датой), фрагмент для ручного добавления и команда для Claude Code в терминале. У Debug — сервер `meal-planner-debug`, со своими данными.
+- Кнопки «… с Claude» (импорт по ссылке, дозаполнить рецепт, КБЖУ продуктов, перенос из Notion) идут через `AppModel.askClaude`: без подключённого сервера приложение сначала предлагает подключить. Дальше — `ClaudeHandoff`: новая сессия Claude Code в папке `Meal Planner` внутри папки данных (ссылка `claude://code/new`) или новый чат с запросом в буфере обмена.
+- В папке `Meal Planner` — только CLAUDE.md (`ClaudeWorkspace.instructions`). Файл, который пользователь поменял, не трогаем. Меняя текст, добавьте SHA-256 прежнего текста в `ClaudeWorkspace.earlierDefaults` — тогда нетронутые копии обновятся.

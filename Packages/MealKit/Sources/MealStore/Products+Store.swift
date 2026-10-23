@@ -2,6 +2,14 @@ import Foundation
 import GRDB
 import MealCore
 
+/// What a product name means in the base.
+public enum ProductMatch: Hashable, Sendable {
+    case found(Product)
+    /// Several products fit; the closest first.
+    case ambiguous([Product])
+    case none
+}
+
 extension AppDatabase {
     // MARK: - Aisles
 
@@ -42,9 +50,34 @@ extension AppDatabase {
         }
     }
 
-    /// The first `limit` products of the query, and how many there are in all.
-    public func products(_ query: ProductQuery, limit: Int) throws -> ListPage<Product> {
-        try reader.read { db in try ProductListSQL.page(db, query, limit: limit) }
+    /// `limit` products of the query from `offset` on, and how many there are in all.
+    public func products(_ query: ProductQuery, limit: Int, offset: Int = 0) throws -> ListPage<Product> {
+        try reader.read { db in try ProductListSQL.page(db, query, limit: limit, offset: offset) }
+    }
+
+    /// The product a name means. A name or alias that matches exactly wins; otherwise any form of the words
+    /// is looked for, and a single result is taken. Several results are a question for whoever asked.
+    public func matchProduct(named name: String) throws -> ProductMatch {
+        if let product = try product(named: name) {
+            return .found(product)
+        }
+        let candidates = try products(ProductQuery(text: name, sort: [SortTerm(.relevance)]), limit: 20).rows
+        switch candidates.count {
+        case 0: return .none
+        case 1: return .found(candidates[0])
+        default:
+            // «сахара» means «Сахар», not «Сахар коричневый»: a name or alias of the very same words wins.
+            let terms = SearchText.terms(name)
+            let whole = candidates.filter { product in
+                ([product.name] + product.aliases).contains { SearchText.terms($0) == terms }
+            }
+            return whole.count == 1 ? .found(whole[0]) : .ambiguous(Array(candidates.prefix(6)))
+        }
+    }
+
+    public func aisle(named name: String) throws -> Aisle? {
+        let key = SearchText.normalized(name)
+        return try aisles().first { SearchText.normalized($0.name) == key }
     }
 
     /// The same, kept current as products change.

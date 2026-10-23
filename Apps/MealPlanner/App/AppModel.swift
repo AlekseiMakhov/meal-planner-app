@@ -1,7 +1,9 @@
-import Foundation
+import AppKit
 import MealCore
 import MealStore
+import OSLog
 import Observation
+import os
 
 /// What the window shows and the data it works with.
 @MainActor @Observable
@@ -48,8 +50,12 @@ final class AppModel {
         let message: String
     }
 
+    nonisolated static let log = Logger(subsystem: "inco.mealplanner", category: "app")
+
     var sidebar = SidebarItem.section(.recipes)
     var problem: Problem?
+    /// A request for Claude waiting until Meal Planner is connected to Claude Desktop.
+    var claudeRequestAwaitingConnection: String?
 
     /// The section on screen; a category is the recipes section showing that category.
     var section: Section {
@@ -69,9 +75,20 @@ final class AppModel {
     let dataDirectory: URL?
     private(set) var database: AppDatabase?
 
-    static var isDebugBuild: Bool {
+    nonisolated static var isDebugBuild: Bool {
         AppIdentity.isDebug(bundleID: Bundle.main.bundleIdentifier ?? "")
     }
+
+    /// The folder Claude Code sessions open in, with instructions on the data.
+    var claudeWorkspace: ClaudeWorkspace? {
+        dataDirectory.map { ClaudeWorkspace(dataDirectory: $0) }
+    }
+
+    /// Writes of the MCP server reach the lists: by its notification, or by the data version when the app
+    /// comes back to the front, in case a notification was missed.
+    @ObservationIgnored private var externalChanges: ExternalChangesObserver?
+    @ObservationIgnored private var activation: NSObjectProtocol?
+    private let seenDataVersion = OSAllocatedUnfairLock<Int?>(initialState: nil)
 
     init() {
         dataDirectory = try? AppDatabase.defaultDirectory(debug: Self.isDebugBuild)
@@ -87,8 +104,46 @@ final class AppModel {
                 _ = try? database.emptyTrash()
                 _ = try? database.removeUnusedImages()
             }
+            watchExternalChanges(database)
         } catch {
             problem = Problem(title: "Не открылась база данных", message: "\(error)")
+        }
+    }
+
+    /// Sends the request to Claude, or first offers to connect Meal Planner's server: without it Claude can
+    /// neither read nor change the data.
+    func askClaude(_ request: String) {
+        if ClaudeConnection.current.state() == .connected {
+            ClaudeHandoff.send(request, workspace: claudeWorkspace)
+        } else {
+            claudeRequestAwaitingConnection = request
+        }
+    }
+
+    private func watchExternalChanges(_ database: AppDatabase) {
+        let seen = seenDataVersion
+        let refresh: @Sendable () -> Void = {
+            Task.detached {
+                do {
+                    let version = try database.dataVersion()
+                    seen.withLock { $0 = version }
+                    try database.notifyExternalChanges()
+                } catch {
+                    Self.log.error("Could not refresh after another process wrote: \(error, privacy: .public)")
+                }
+            }
+        }
+        externalChanges = ExternalChangesObserver(refresh)
+        seen.withLock { $0 = try? database.dataVersion() }
+        activation = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: nil
+        ) { _ in
+            Task.detached {
+                let version = try? database.dataVersion()
+                if seen.withLock({ $0 != version }) {
+                    refresh()
+                }
+            }
         }
     }
 }

@@ -4,10 +4,12 @@ import MealCore
 /// The recipe lists in SQL. The nutrition table has a row per recipe; the gallery has a row per recipe and
 /// category, ordered by the categories first, so its blocks fill the groups in turn.
 enum RecipeListSQL {
-    static func cards(_ db: Database, _ query: RecipeQuery, limit: Int) throws -> ListPage<RecipeCard> {
+    static func cards(
+        _ db: Database, _ query: RecipeQuery, limit: Int, offset: Int = 0
+    ) throws -> ListPage<RecipeCard> {
         let rows = try SQLRequest<Row>(
             literal: "SELECT " + columns + " " + source(query, grouped: false) + " ORDER BY " + order(query)
-                + " LIMIT \(limit)"
+                + " LIMIT \(limit) OFFSET \(offset)"
         ).fetchAll(db)
         var cards = rows.map(card)
         let categories = try categoryIDs(db, recipes: cards.map(\.id))

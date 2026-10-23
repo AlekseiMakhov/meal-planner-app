@@ -1,3 +1,4 @@
+import AppKit
 import MealCore
 import MealStore
 import SwiftUI
@@ -12,6 +13,7 @@ struct MainWindow: View {
     @State private var name = ""
     @State private var deleting: RecipeCategory?
     @State private var categoryProblem: String?
+    @State private var claudeNotice: String?
 
     var body: some View {
         @Bindable var model = model
@@ -89,6 +91,22 @@ struct MainWindow: View {
             Text(problem)
         }
         .alert(
+            "Подключить Meal Planner к Claude?", isPresented: isPresent($model.claudeRequestAwaitingConnection),
+            presenting: model.claudeRequestAwaitingConnection
+        ) { request in
+            Button("Подключить") { connectClaude(then: request) }
+            Button("Отмена", role: .cancel) {}
+        } message: { _ in
+            Text(
+                "Без инструментов Meal Planner Claude не прочитает и не изменит рецепты. В конфиг Claude Desktop добавится сервер «\(ClaudeConnection.current.serverName)», прежний конфиг сохранится рядом."
+            )
+        }
+        .alert("Claude", isPresented: isPresent($claudeNotice), presenting: claudeNotice) { _ in
+            Button("Понятно") {}
+        } message: { notice in
+            Text(notice)
+        }
+        .alert(
             model.problem?.title ?? "",
             isPresented: Binding(get: { model.problem != nil }, set: { if !$0 { model.problem = nil } }),
             presenting: model.problem
@@ -120,6 +138,24 @@ struct MainWindow: View {
     }
 
     // MARK: - Changes
+
+    /// Adds the server to Claude Desktop's config. A running Claude Desktop sees it only after a restart, so the
+    /// request waits for the next press; otherwise it goes now and Claude Desktop starts with the server.
+    private func connectClaude(then request: String) {
+        do {
+            try ClaudeConnection.current.install()
+        } catch {
+            claudeNotice = "Конфиг Claude Desktop не изменился: \(error)."
+            return
+        }
+        let running = !NSRunningApplication.runningApplications(withBundleIdentifier: ClaudeHandoff.bundleID).isEmpty
+        if running {
+            claudeNotice =
+                "Meal Planner подключён. Перезапустите Claude Desktop — ⌘Q и открыть снова, — чтобы он увидел инструменты, и нажмите кнопку ещё раз."
+        } else {
+            ClaudeHandoff.send(request, workspace: model.claudeWorkspace)
+        }
+    }
 
     private enum CategoryNaming: Identifiable {
         case new

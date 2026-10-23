@@ -7,6 +7,7 @@ import SwiftUI
 struct ProductsScreen: View {
     let database: AppDatabase
 
+    @Environment(AppModel.self) private var model
     @State private var list: PagedList<ProductQuery, Product>
     @State private var aisles: [Aisle] = []
     @State private var selection: Set<Product.ID> = []
@@ -41,6 +42,11 @@ struct ProductsScreen: View {
                 sortMenu
                 Button("Новый продукт", systemImage: "plus", action: addProduct)
                 Button("Свойства", systemImage: "sidebar.trailing") { showsInspector.toggle() }
+                Menu("Ещё", systemImage: "ellipsis.circle") {
+                    Button("Заполнить КБЖУ с Claude", systemImage: "sparkles") {
+                        model.askClaude(ClaudeRequest.fillNutrition(nil))
+                    }
+                }
             }
         }
         .inspector(isPresented: $showsInspector) {
@@ -132,6 +138,12 @@ struct ProductsScreen: View {
             .width(min: 70, ideal: 90)
         }
         .contextMenu(forSelectionType: Product.ID.self) { ids in
+            let chosen = list.rows.filter { ids.contains($0.id) }
+            if !chosen.isEmpty {
+                Button("Заполнить КБЖУ с Claude") {
+                    model.askClaude(ClaudeRequest.fillNutrition(chosen.map { "«\($0.name)»" }.joined(separator: ", ")))
+                }
+            }
             if ids.count == 1, let product = list.rows.first(where: { $0.id == ids.first }) {
                 Button("Объединить с другим продуктом…") { merging = product }
                 Divider()

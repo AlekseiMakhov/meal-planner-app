@@ -11,6 +11,7 @@ struct RecipePage: View {
     let mealTypes: [MealType]
     let onClose: () -> Void
 
+    @Environment(AppModel.self) private var model
     @State private var details: RecipeDetails?
     @State private var draft: RecipeDetails?
     /// The draft as it was last saved, so saving again only happens after a change.
@@ -86,6 +87,10 @@ struct RecipePage: View {
                 Button("Править", systemImage: "pencil") { edit(details) }
                     .keyboardShortcut("e", modifiers: .command)
                 Menu("Ещё", systemImage: "ellipsis.circle") {
+                    Button("Дозаполнить с Claude", systemImage: "sparkles") {
+                        model.askClaude(ClaudeRequest.fillRecipe("«\(details.recipe.title)» (id \(details.recipe.id))"))
+                    }
+                    Divider()
                     Button("Дублировать") { run { _ = try database.duplicateRecipe(id: details.recipe.id) } }
                     Divider()
                     Button("В корзину…", role: .destructive) { confirmsTrash = true }

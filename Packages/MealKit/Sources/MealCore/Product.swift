@@ -145,18 +145,7 @@ extension Product {
         if nameKey.isEmpty {
             problems.append("Нужно название.")
         }
-        let macros = [("Белки", protein), ("Жиры", fat), ("Углеводы", carbs)]
-        if let kcal, !(0...902).contains(kcal) {
-            problems.append("Калорийность на 100 г — от 0 до 900 ккал.")
-        }
-        for (title, value) in macros {
-            if let value, !(0...100).contains(value) {
-                problems.append("\(title) на 100 г — от 0 до 100 г.")
-            }
-        }
-        if macros.compactMap(\.1).reduce(0, +) > 100.5 {
-            problems.append("Белков, жиров и углеводов вместе больше 100 г на 100 г продукта.")
-        }
+        problems += Nutrition.problems(kcal: kcal, protein: protein, fat: fat, carbs: carbs)
         if let gramsPerPiece, gramsPerPiece <= 0 {
             problems.append("Вес одной штуки должен быть больше нуля.")
         }

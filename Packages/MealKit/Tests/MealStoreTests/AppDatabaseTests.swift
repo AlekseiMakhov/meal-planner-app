@@ -52,4 +52,29 @@ struct AppDatabaseTests {
         #expect(try reopened.products(.init(), limit: 1).total == total - 1)
         #expect(try reopened.product(named: "Соль") == nil)
     }
+
+    /// The MCP server writes through a connection of its own; the app's lists see it once told.
+    @Test(.timeLimit(.minutes(1))) func aWriteFromAnotherConnectionReachesObservationsOnceNotified() async throws {
+        let folder = temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        let app = try AppDatabase.open(in: folder)
+        let server = try AppDatabase.open(in: folder)
+        var categories = app.observeCategories().makeAsyncIterator()
+        #expect(try await categories.next()?.isEmpty == true)
+        _ = try server.newCategory(named: "Супы")
+        try app.notifyExternalChanges()
+        #expect(try await categories.next()?.map(\.category.name) == ["Супы"])
+    }
+
+    @Test func dataVersionChangesOnlyWhenAnotherConnectionWrites() throws {
+        let folder = temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        let app = try AppDatabase.open(in: folder)
+        let server = try AppDatabase.open(in: folder)
+        let before = try app.dataVersion()
+        _ = try app.newCategory(named: "Завтраки")
+        #expect(try app.dataVersion() == before)
+        _ = try server.newCategory(named: "Супы")
+        #expect(try app.dataVersion() != before)
+    }
 }

@@ -40,6 +40,29 @@ public struct Nutrition: Hashable, Sendable, Codable {
     public var caloriesMatchMacros: Bool {
         abs(kcal - kcalFromMacros) <= max(0.15 * kcal, 10)
     }
+
+    /// Why values per 100 g cannot be right, in words for the editor; empty when they can. A missing value is
+    /// no problem here.
+    public static func problems(kcal: Double?, protein: Double?, fat: Double?, carbs: Double?) -> [String] {
+        var problems: [String] = []
+        let macros = [("Белки", protein), ("Жиры", fat), ("Углеводы", carbs)]
+        if let kcal, !(0...902).contains(kcal) {
+            problems.append("Калорийность на 100 г — от 0 до 900 ккал.")
+        }
+        for (title, value) in macros {
+            if let value, !(0...100).contains(value) {
+                problems.append("\(title) на 100 г — от 0 до 100 г.")
+            }
+        }
+        if macros.compactMap(\.1).reduce(0, +) > 100.5 {
+            problems.append("Белков, жиров и углеводов вместе больше 100 г на 100 г.")
+        }
+        return problems
+    }
+
+    public var problems: [String] {
+        Self.problems(kcal: kcal, protein: protein, fat: fat, carbs: carbs)
+    }
 }
 
 /// Adds up the nutrition of a dish's ingredients and keeps count of the ones it could not include: those

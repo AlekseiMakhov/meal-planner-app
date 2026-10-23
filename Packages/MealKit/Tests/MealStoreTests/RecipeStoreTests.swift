@@ -44,6 +44,27 @@ struct RecipeStoreTests {
         #expect(details.ingredients.isEmpty)
     }
 
+    @Test func aRecipeThatArrivesCompleteIsSavedWhole() throws {
+        let fixture = try Fixture()
+        let eggs = try fixture.add("Яйцо куриное", kcal: 157, protein: 12.7, fat: 11.5, carbs: 0.7)
+        let category = try fixture.database.newCategory(named: "Завтраки")
+        var details = RecipeDetails(recipe: Recipe(id: 0, title: "  Яичница  ", servings: 1, cookMinutes: 5))
+        details.ingredients = [RecipeIngredient(productID: eggs.id, amount: 100, unit: .gram)]
+        details.steps = [RecipeStep(text: "Пожарить."), RecipeStep(text: " ")]
+        details.categoryIDs = [category.id]
+        let saved = try fixture.database.newRecipe(from: details)
+        #expect(saved.recipe.id > 0)
+        #expect(saved.recipe.title == "Яичница")
+        #expect(saved.steps.map(\.text) == ["Пожарить."])
+        #expect(saved.categoryIDs == [category.id])
+        #expect(saved.nutrition.perServing?.kcal == 157)
+        #expect(try fixture.titles(RecipeQuery()) == ["Яичница"])
+
+        details.recipe.servings = 0
+        #expect(throws: StoreError.self) { try fixture.database.newRecipe(from: details) }
+        #expect(try fixture.titles(RecipeQuery()) == ["Яичница"])
+    }
+
     /// The omelette from the Notion base, typed line by line against the starting product base.
     @Test func omeletteFromTypedLines() throws {
         let database = try AppDatabase.inMemory(seeded: true)

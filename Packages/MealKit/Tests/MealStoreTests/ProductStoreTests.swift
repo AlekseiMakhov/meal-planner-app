@@ -97,6 +97,26 @@ struct ProductStoreTests {
         #expect(try fixture.database.product(named: " ") == nil)
     }
 
+    @Test func aNameMeansTheExactProductThenTheOneOfTheSameWords() throws {
+        let fixture = try Fixture()
+        for name in ["Сахар", "Сахар коричневый", "Сахарная пудра", "Сыр гауда", "Сыр чеддер"] {
+            try fixture.add(name)
+        }
+        func match(_ name: String) throws -> String? {
+            guard case .found(let product) = try fixture.database.matchProduct(named: name) else { return nil }
+            return product.name
+        }
+        #expect(try match("Сахар") == "Сахар")
+        #expect(try match("сахара") == "Сахар")
+        #expect(try match("пудры сахарной") == "Сахарная пудра")
+        guard case .ambiguous(let cheeses) = try fixture.database.matchProduct(named: "сыра") else {
+            Issue.record("several cheeses should fit")
+            return
+        }
+        #expect(Set(cheeses.map(\.name)) == ["Сыр гауда", "Сыр чеддер"])
+        #expect(try fixture.database.matchProduct(named: "кофе") == ProductMatch.none)
+    }
+
     @Test func deletedProductIsGone() throws {
         let fixture = try Fixture()
         let salt = try fixture.add("Соль")

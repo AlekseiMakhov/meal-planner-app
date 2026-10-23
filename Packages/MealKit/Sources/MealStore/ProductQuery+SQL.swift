@@ -4,9 +4,10 @@ import MealCore
 /// The product list in SQL: the search joins the full-text index, filters become conditions, and the order
 /// ends with the name and the id so equal values keep their places from one block to the next.
 enum ProductListSQL {
-    static func page(_ db: Database, _ query: ProductQuery, limit: Int) throws -> ListPage<Product> {
+    static func page(_ db: Database, _ query: ProductQuery, limit: Int, offset: Int = 0) throws -> ListPage<Product> {
         let rows = try SQLRequest<ProductRecord>(
-            literal: "SELECT product.* " + source(query) + " ORDER BY " + order(query) + " LIMIT \(limit)"
+            literal: "SELECT product.* " + source(query) + " ORDER BY " + order(query)
+                + " LIMIT \(limit) OFFSET \(offset)"
         ).fetchAll(db)
         let total = try SQLRequest<Int>(literal: "SELECT COUNT(*) " + source(query)).fetchOne(db) ?? 0
         return ListPage(rows: rows.map(\.product), total: total)

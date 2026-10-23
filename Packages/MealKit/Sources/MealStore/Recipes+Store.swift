@@ -11,21 +11,27 @@ extension AppDatabase {
     }
 
     /// Categories with how many recipes outside the trash each holds: the sidebar's list.
+    public func categorySummaries() throws -> [CategorySummary] {
+        try reader.read { db in try Self.fetchCategorySummaries(db) }
+    }
+
     public func observeCategories() -> AsyncValueObservation<[CategorySummary]> {
-        ValueObservation.trackingConstantRegion { db in
-            let counts = try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT recipe_category.categoryId AS id, COUNT(*) AS count FROM recipe_category
-                    JOIN recipe ON recipe.id = recipe_category.recipeId AND recipe.deletedAt IS NULL
-                    GROUP BY recipe_category.categoryId
-                    """
-            ).reduce(into: [Int64: Int]()) { result, row in result[row["id"]] = row["count"] }
-            return try CategoryRecord.order(Column("position"), Column("id")).fetchAll(db).map {
-                CategorySummary(category: $0.category, count: counts[$0.id ?? 0] ?? 0)
-            }
+        ValueObservation.trackingConstantRegion { db in try Self.fetchCategorySummaries(db) }
+            .removeDuplicates().values(in: reader)
+    }
+
+    private static func fetchCategorySummaries(_ db: Database) throws -> [CategorySummary] {
+        let counts = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT recipe_category.categoryId AS id, COUNT(*) AS count FROM recipe_category
+                JOIN recipe ON recipe.id = recipe_category.recipeId AND recipe.deletedAt IS NULL
+                GROUP BY recipe_category.categoryId
+                """
+        ).reduce(into: [Int64: Int]()) { result, row in result[row["id"]] = row["count"] }
+        return try CategoryRecord.order(Column("position"), Column("id")).fetchAll(db).map {
+            CategorySummary(category: $0.category, count: counts[$0.id ?? 0] ?? 0)
         }
-        .removeDuplicates().values(in: reader)
     }
 
     /// A new category at the end of the list, in the next colour of the palette.
@@ -102,8 +108,8 @@ extension AppDatabase {
             .removeDuplicates().values(in: reader)
     }
 
-    public func recipeCards(_ query: RecipeQuery, limit: Int) throws -> ListPage<RecipeCard> {
-        try reader.read { db in try RecipeListSQL.cards(db, query, limit: limit) }
+    public func recipeCards(_ query: RecipeQuery, limit: Int, offset: Int = 0) throws -> ListPage<RecipeCard> {
+        try reader.read { db in try RecipeListSQL.cards(db, query, limit: limit, offset: offset) }
     }
 
     /// The nutrition table's rows.
@@ -142,6 +148,25 @@ extension AppDatabase {
                 try RecipeCategoryRecord(recipeId: id, categoryId: categoryID).insert(db)
             }
             try RecipeDerived.refresh(db, recipeIDs: [id])
+            return try RecipeDerived.details(db, id: id)!
+        }
+    }
+
+    /// Adds a recipe that arrives complete, as Claude sends it: one transaction, so it shows up whole or not at all.
+    public func newRecipe(from details: RecipeDetails) throws -> RecipeDetails {
+        if let problem = details.problems.first {
+            throw StoreError(problem)
+        }
+        return try writer.write { db in
+            var recipe = details.recipe
+            recipe.title = recipe.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            recipe.createdAt = .now
+            recipe.updatedAt = .now
+            recipe.deletedAt = nil
+            var record = RecipeRecord(recipe, id: nil)
+            try record.insert(db)
+            let id = record.id ?? 0
+            try Self.writeContent(of: details, to: id, db)
             return try RecipeDerived.details(db, id: id)!
         }
     }

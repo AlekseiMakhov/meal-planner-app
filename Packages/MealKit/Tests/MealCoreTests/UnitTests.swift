@@ -54,6 +54,19 @@ struct UnitTests {
         #expect(MeasureUnit.tablespoon.title(for: 2) == "ст. л.")
     }
 
+    /// The units the Notion base used, codes Claude sends and Russian words alike.
+    @Test func unitsAreReadAsPeopleAndClaudeWriteThem() {
+        let units: [String: MeasureUnit] = [
+            "гр.": .gram, "шт.": .piece, "ч. л.": .teaspoon, "ст. л.": .tablespoon, "пуч.": .bunch, "мл.": .milliliter,
+            "зб.": .clove, "g": .gram, "tbsp": .tablespoon, "to-taste": .toTaste, "по вкусу": .toTaste,
+            "зубчика": .clove,
+        ]
+        for (text, unit) in units {
+            #expect(MeasureUnit(parsing: text) == unit, "\(text)")
+        }
+        #expect(MeasureUnit(parsing: "ведро") == nil)
+    }
+
     @Test func namedUnitsAreTheOnesAProductWeighs() {
         #expect(MeasureUnit.named.contains(.clove))
         #expect(!MeasureUnit.named.contains(.piece))

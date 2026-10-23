@@ -206,7 +206,7 @@ public enum IngredientParser {
         (.milliliter, #"мл\.?|миллилитр(?:а|ов)?"#),
         (.liter, #"литр(?:а|ов)?|л\.?"#),
         (.piece, #"шт\.?|штук(?:а|и|у)?|штучк[аи]"#),
-        (.clove, #"зубч(?:ик|ика|иков|ики|ок)|зубок|зуб\."#),
+        (.clove, #"зубч(?:ик|ика|иков|ики|ок)|зубок|зуб\.|зб\."#),
         (.bunch, #"пуч(?:ок|ка|ков|ки|очек|очка)|пуч\."#),
         (.slice, #"ломт(?:ик|ика|иков|ики)|кус(?:ок|ка|ков|ки|очек|очка|очков|очки)"#),
         (.sprig, #"веточ(?:ка|ки|ек|ку)|вет(?:ка|ки|ок|ку)"#),
@@ -220,6 +220,11 @@ public enum IngredientParser {
 
     private static let unitPatterns: [(MeasureUnit, NSRegularExpression)] = unitWords.map { unit, pattern in
         (unit, regex("^(?:\(pattern))$"))
+    }
+
+    /// A unit written out: «г», «ст. л.», «зубчика», «стакан»; nil when the text is no unit.
+    public static func unit(_ text: String) -> MeasureUnit? {
+        unitFor(text)
     }
 
     private static func unitFor(_ text: String) -> MeasureUnit? {

@@ -5,22 +5,6 @@ import Testing
 
 @testable import MealMCP
 
-/// The text of a successful result, read back as JSON.
-private func output(_ result: CallTool.Result) throws -> Value {
-    #expect(result.isError != true, "\(result.content)")
-    guard case .text(let text, _, _) = try #require(result.content.first) else {
-        Issue.record("no text in the result")
-        return .null
-    }
-    return try JSONDecoder().decode(Value.self, from: Data(text.utf8))
-}
-
-extension Value {
-    fileprivate subscript(_ key: String) -> Value? {
-        objectValue?[key]
-    }
-}
-
 struct MealMCPServerTests {
     private let folder = FileManager.default.temporaryDirectory.appending(
         path: "meal mcp \(UUID().uuidString)", directoryHint: .isDirectory)
@@ -29,16 +13,50 @@ struct MealMCPServerTests {
         MealTools(location: MealDataLocation(directory: folder), version: "test")
     }
 
-    @Test func handshakeIdentifiesServerAndListsTools() async throws {
+    @Test func handshakeIdentifiesServerAndListsToolsAndPrompts() async throws {
         try await withConnectedClient(tools) { client, initialize in
             #expect(initialize.serverInfo.name == "meal-planner")
             #expect(initialize.serverInfo.version == "test")
-            #expect(initialize.instructions?.contains("get_status") == true)
+            #expect(initialize.instructions?.contains("search_products") == true)
             let (tools, _) = try await client.listTools()
-            #expect(tools.map(\.name) == ["get_status"])
+            #expect(tools.map(\.name) == MealTools.all.map(\.name))
             let result = try await client.callTool(name: "get_status")
             #expect(result.isError != true)
+
+            let (prompts, _) = try await client.listPrompts()
+            #expect(prompts.map(\.name) == ["import_recipe", "fill_recipe", "fill_nutrition", "migrate_from_notion"])
+            let prompt = try await client.getPrompt(
+                name: "import_recipe", arguments: ["url": "https://example.com/omelette", "category": "Завтраки"])
+            guard case .text(let text) = try #require(prompt.messages.first).content else {
+                Issue.record("no text in the prompt")
+                return
+            }
+            #expect(text.contains("https://example.com/omelette"))
+            #expect(text.contains("«Завтраки»"))
         }
+    }
+
+    @Test func everyListedToolIsServedAndNamedOnce() async {
+        let names = MealTools.all.map(\.name)
+        #expect(Set(names).count == names.count)
+        for name in names {
+            let result = await tools.call(name)
+            guard case .text(let text, _, _) = result.content.first else { continue }
+            #expect(!text.contains("нет инструмента"), "\(name)")
+        }
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    @Test func promptsAskForWhatTheyNeed() throws {
+        #expect(throws: MCPError.self) { try MealPrompts.get("import_recipe") }
+        #expect(throws: MCPError.self) { try MealPrompts.get("missing") }
+        let migrate = try MealPrompts.get("migrate_from_notion")
+        guard case .text(let text) = try #require(migrate.messages.first).content else {
+            Issue.record("no text in the prompt")
+            return
+        }
+        #expect(text.contains("Recipes"))
+        #expect(text.contains("create_recipe"))
     }
 
     @Test func statusBeforeTheAppEverRanDoesNotCreateTheDatabase() async throws {
@@ -56,6 +74,8 @@ struct MealMCPServerTests {
         let status = try output(await tools.call("get_status"))
         #expect(status["database"]?["exists"]?.boolValue == true)
         #expect(status["database"]?["migrations"] == .array(["products", "seed: products 1", "recipes"]))
+        #expect((status["database"]?["products"]?.intValue ?? 0) > 300)
+        #expect(status["database"]?["recipes"]?.intValue == 0)
     }
 
     @Test func unknownToolIsReportedAsToolError() async {

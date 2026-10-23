@@ -19,6 +19,7 @@ struct RecipesScreen: View {
     /// The category chosen in the sidebar: the list starts filtered by it.
     let categoryID: RecipeCategory.ID?
 
+    @Environment(AppModel.self) private var model
     @AppStorage("recipes.mode") private var mode = Mode.gallery
     @State private var query: RecipeQuery
     @State private var collapsed: Set<RecipeCategory.ID?> = []
@@ -31,6 +32,7 @@ struct RecipesScreen: View {
     @State private var searchText = ""
     @State private var sortOrder = [RecipeOrder(.title)]
     @State private var showsTrash = false
+    @State private var importsWithClaude = false
     @State private var problem: String?
 
     init(database: AppDatabase, categoryID: RecipeCategory.ID?) {
@@ -126,11 +128,21 @@ struct RecipesScreen: View {
                 sortMenu
                 Button("Новый рецепт", systemImage: "plus", action: addRecipe)
                 Menu("Ещё", systemImage: "ellipsis.circle") {
+                    Button("Импорт по ссылке с Claude…", systemImage: "sparkles") { importsWithClaude = true }
+                    Button("Перенести из Notion с Claude") {
+                        model.askClaude(ClaudeRequest.migrateFromNotion("Recipes"))
+                    }
+                    Divider()
                     Button("Корзина…") { showsTrash = true }
                 }
             }
         }
         .sheet(isPresented: $showsTrash) { TrashSheet(database: database) }
+        .sheet(isPresented: $importsWithClaude) {
+            ClaudeImportSheet(categories: categories, categoryID: categoryID) { request in
+                model.askClaude(request)
+            }
+        }
         .alert("Не получилось", isPresented: isPresent($problem), presenting: problem) { _ in
             Button("Понятно") {}
         } message: { problem in

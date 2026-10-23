@@ -219,13 +219,8 @@ public struct RecipeDetails: Hashable, Sendable {
         if ingredients.contains(where: { ($0.amount ?? 0) < 0 || ($0.amountMax ?? 0) < 0 }) {
             problems.append("Количество не бывает отрицательным.")
         }
-        if let override = recipe.nutritionOverride,
-            let problem = Product(
-                id: 0, name: "-", kcal: override.kcal, protein: override.protein, fat: override.fat,
-                carbs: override.carbs
-            ).problems.first
-        {
-            problems.append(problem.description)
+        if let problem = recipe.nutritionOverride?.problems.first {
+            problems.append(problem)
         }
         return problems
     }

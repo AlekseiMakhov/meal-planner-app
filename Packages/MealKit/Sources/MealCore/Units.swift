@@ -82,6 +82,23 @@ public enum MeasureUnit: String, CaseIterable, Codable, Hashable, Sendable {
     }
 }
 
+extension MeasureUnit {
+    /// A unit as a person or Claude writes it: the stored code («g», «tbsp», «to-taste»), a Russian word in any
+    /// form («г», «ст. л.», «зубчика»), or «по вкусу».
+    public init?(parsing text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let unit = MeasureUnit(rawValue: text.lowercased()) {
+            self = unit
+        } else if SearchText.normalized(text) == "по вкусу" {
+            self = .toTaste
+        } else if let unit = IngredientParser.unit(text) {
+            self = unit
+        } else {
+            return nil
+        }
+    }
+}
+
 /// The unit a product is kept and counted in: what the pantry stores and the shopping list adds up.
 public enum BaseUnit: String, CaseIterable, Codable, Hashable, Sendable {
     case gram = "g"
