@@ -49,7 +49,9 @@ enum RecipeDerived {
                 kcalPerServing: nutrition.perServing?.kcal, proteinPerServing: nutrition.perServing?.protein,
                 fatPerServing: nutrition.perServing?.fat, carbsPerServing: nutrition.perServing?.carbs,
                 totalMinutes: details.recipe.totalMinutes, isNutritionComplete: nutrition.isComplete,
-                missingCount: availability.missingCount
+                missingCount: availability.missingCount,
+                lastCookedAt: try Date.fetchOne(
+                    db, sql: "SELECT MAX(cookedAt) FROM plan_entry WHERE recipeId = ?", arguments: [id])
             ).upsert(db)
         }
     }

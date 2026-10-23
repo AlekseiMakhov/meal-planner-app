@@ -43,6 +43,15 @@ enum PantryListSQL {
         if !query.aisleIDs.isEmpty {
             conditions.append("product.aisleId IN \(query.aisleIDs.sorted())")
         }
+        if let days = query.menuDays {
+            conditions.append(
+                """
+                product.id IN (SELECT recipe_ingredient.productId FROM plan_entry
+                JOIN recipe_ingredient ON recipe_ingredient.recipeId = plan_entry.recipeId
+                WHERE plan_entry.day BETWEEN \(days.lowerBound.description) AND \(days.upperBound.description)
+                AND plan_entry.cookedAt IS NULL)
+                """)
+        }
         if !query.statuses.isEmpty {
             let statuses: [SQL] = query.statuses.sorted { $0.rawValue < $1.rawValue }.map { status in
                 switch status {

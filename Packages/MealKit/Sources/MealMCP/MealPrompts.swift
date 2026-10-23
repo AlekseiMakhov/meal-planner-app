@@ -43,6 +43,17 @@ public enum MealPrompts {
                     required: false),
             ]),
         Prompt(
+            name: "plan_week", title: "Меню на неделю",
+            description: "Составить меню на неделю из того, что есть дома, и положить недостающее в покупки.",
+            arguments: [
+                Prompt.Argument(
+                    name: "week", title: "Неделя", description: "Любой её день, «2026-10-26»; по умолчанию — эта.",
+                    required: false),
+                Prompt.Argument(
+                    name: "wishes", title: "Пожелания", description: "«Больше рыбы», «ужины до 30 минут».",
+                    required: false),
+            ]),
+        Prompt(
             name: "migrate_from_notion", title: "Перенести рецепты из Notion",
             description: "Перенести рецепты из базы Notion: фото, ингредиенты с количеством, шаги, категории и ссылки.",
             arguments: [
@@ -72,6 +83,8 @@ public enum MealPrompts {
             text = ClaudeRequest.fillNutrition(value("products"))
         case "what_to_cook":
             text = ClaudeRequest.whatToCook(meal: value("meal"), wishes: value("wishes"))
+        case "plan_week":
+            text = ClaudeRequest.planWeek(week: value("week"), wishes: value("wishes"))
         default:
             text = ClaudeRequest.migrateFromNotion(value("database") ?? "Recipes")
         }

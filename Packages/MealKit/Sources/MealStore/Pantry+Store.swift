@@ -104,16 +104,18 @@ extension AppDatabase {
     /// Takes amounts out of the pantry: what a dish used. What is not counted stays as it is; nothing goes below
     /// zero.
     public func takeFromPantry(_ amounts: [Product.ID: Double]) throws {
-        try writer.write { db in
-            for (productID, amount) in amounts {
-                guard var item = try PantryItemRecord.fetchOne(db, key: productID)?.item, let quantity = item.quantity
-                else { continue }
-                item.quantity = max(quantity - amount, 0)
-                item.updatedAt = .now
-                try PantryItemRecord(item).upsert(db)
-            }
-            try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: Array(amounts.keys), db))
+        try writer.write { db in try Self.takeFromPantry(amounts, db) }
+    }
+
+    static func takeFromPantry(_ amounts: [Product.ID: Double], _ db: Database) throws {
+        for (productID, amount) in amounts {
+            guard var item = try PantryItemRecord.fetchOne(db, key: productID)?.item, let quantity = item.quantity
+            else { continue }
+            item.quantity = max(quantity - amount, 0)
+            item.updatedAt = .now
+            try PantryItemRecord(item).upsert(db)
         }
+        try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: Array(amounts.keys), db))
     }
 
     /// Marks the product as running low, or not.

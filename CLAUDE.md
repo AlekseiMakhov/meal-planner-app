@@ -2,7 +2,7 @@
 
 ## Что это
 
-Meal Planner & Recipes — macOS-приложение: рецепты с КБЖУ, база продуктов, запасы дома, список покупок и меню на неделю. Данные доступны Claude Desktop и Claude Code через MCP. Готовы этапы 0 (каркас), 1 (продукты и единицы), 2 (рецепты и категории), 3 (MCP и Claude) и 4 (запасы и покупки).
+Meal Planner & Recipes — macOS-приложение: рецепты с КБЖУ, база продуктов, запасы дома, список покупок и меню на неделю. Данные доступны Claude Desktop и Claude Code через MCP. Готовы этапы 0 (каркас), 1 (продукты и единицы), 2 (рецепты и категории), 3 (MCP и Claude), 4 (запасы и покупки) и 5 (меню на неделю).
 
 - Замысел, решения и этапы — [plan-meal-planner.md](plan-meal-planner.md). Решения оттуда не пересматриваем без явной просьбы; новое решение сначала вносим в план.
 
@@ -33,15 +33,16 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
   - `Screens/Products` — экран продуктов;
   - `Screens/Recipes` — галерея, таблица КБЖУ, фильтры, корзина;
   - `Screens/Recipe` — страница рецепта и её редактор, ингредиенты с наличием дома, фото, видео и превью ссылок;
+  - `Screens/Planner` — меню на неделю: сетка, ячейки и карточки блюд (`PlanCell`, перетаскивание — `PlanDragItem` с типом `inco.mealplanner.plan-item` из Info.plist), рецепты сбоку (`PlannerLibrary`), «Приготовлено» (`CookedSheet`);
   - `Screens/Pantry`, `Screens/Shopping` — запасы и список покупок; общие части — `Lists/QuickAddField` (строка «яйца 10», поле количества, группы по отделам);
   - `System` — связь с Claude: конфиг Claude Desktop (`ClaudeConnection`), кнопки «… с Claude» (`ClaudeHandoff`), папка с CLAUDE.md для сессий Claude Code (`ClaudeWorkspace`);
   - `Settings`, `Resources` (`Assets.xcassets` с цветовыми токенами, `Localizable.xcstrings`).
 - `Apps/MCPServer` — точка входа `meal-planner-mcp`; утилита встраивается в `MealPlanner.app/Contents/Helpers/`.
 - `Apps/MealPlannerTests` — тесты, которым нужен собранный бандл приложения.
 - `Packages/MealKit` — вся логика:
-  - `MealCore` — модели и логика: единицы и пересчёты (`MeasureUnit`, `UnitProfile`), КБЖУ (`Nutrition`, `NutritionTotal`, `RecipeNutrition`), продукт и рецепт (`RecipeDetails`), разбор строк ингредиентов (`IngredientParser`), видео (`VideoEmbed`), поиск (`SearchText`, `RussianStemmer`), запросы списков (`ProductQuery`, `RecipeQuery`, `SortTerm`, `ListPage`), общие имена (`AppIdentity`), запросы к Claude (`ClaudeRequest`: тексты промптов MCP и кнопок «… с Claude»), запасы и покупки (`Pantry.swift`: `PantryItem`, наличие строки рецепта `Availability`, нехватка `ShoppingAddition`, `ShoppingItem`, запросы `PantryQuery` и `ShoppingQuery`). Только Foundation: без AppKit, SwiftUI и GRDB.
-  - `MealStore` → `MealCore`, GRDB: схема, миграции, начальная база (`Seed/`), запросы списков в SQL, кеш рецептов (`RecipeDerived`), фото (`ImageStore`), `PagedList`, уведомления о записи из другого процесса (`ExternalChanges`), запасы и покупки (`Pantry+Store`, `Shopping+Store`, списки — `PantryListSQL`, `ShoppingListSQL`).
-  - `MealMCP` → `MealCore`, `MealStore`, MCP SDK: инструменты (`MealTools` и расширения `ProductTools`, `CategoryTools`, `RecipeTools`, `PantryTools`), разбор аргументов (`Arguments`), вид ответов (`ToolOutput`), промпты (`MealPrompts`).
+  - `MealCore` — модели и логика: единицы и пересчёты (`MeasureUnit`, `UnitProfile`), КБЖУ (`Nutrition`, `NutritionTotal`, `RecipeNutrition`), продукт и рецепт (`RecipeDetails`), разбор строк ингредиентов (`IngredientParser`), видео (`VideoEmbed`), поиск (`SearchText`, `RussianStemmer`), запросы списков (`ProductQuery`, `RecipeQuery`, `SortTerm`, `ListPage`), общие имена (`AppIdentity`), запросы к Claude (`ClaudeRequest`: тексты промптов MCP и кнопок «… с Claude»), запасы и покупки (`Pantry.swift`: `PantryItem`, наличие строки рецепта `Availability`, нехватка `ShoppingAddition`, `ShoppingItem`, запросы `PantryQuery` и `ShoppingQuery`), меню (`Planner.swift`: день `Day`, блюдо `PlanEntry`, неделя `WeekPlan` с КБЖУ дня и распределением запасов `MenuSupply`, списание `CookingUse`). Только Foundation: без AppKit, SwiftUI и GRDB.
+  - `MealStore` → `MealCore`, GRDB: схема, миграции, начальная база (`Seed/`), запросы списков в SQL, кеш рецептов (`RecipeDerived`), фото (`ImageStore`), `PagedList`, уведомления о записи из другого процесса (`ExternalChanges`), запасы и покупки (`Pantry+Store`, `Shopping+Store`, списки — `PantryListSQL`, `ShoppingListSQL`), меню (`Planner+Store`).
+  - `MealMCP` → `MealCore`, `MealStore`, MCP SDK: инструменты (`MealTools` и расширения `ProductTools`, `CategoryTools`, `RecipeTools`, `PantryTools`, `PlannerTools`), разбор аргументов (`Arguments`), вид ответов (`ToolOutput`), промпты (`MealPrompts`).
   - `MealReminders` (EventKit) появится на этапе 6.
 - `Tools/seed` — каталог начальной базы и её сборка.
 
@@ -98,6 +99,14 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 - Объединение дублей переносит запасы (с пересчётом единиц) и покупки; смена основной единицы продукта пересчитывает его запас, а то, что не пересчитать, становится «есть, без счёта».
 - Поиск в запасах и покупках — по началу слов `searchText` продукта или текста позиции через `LIKE`: списки короткие, полнотекстовый индекс им не нужен.
 
+## Меню на неделю
+
+- Блюдо — `plan_entry`: день текстом («2026-10-23», `Day`, неделя с понедельника), приём пищи, рецепт или текст, порции, место в ячейке. Удаление приёма пищи удаляет его блюда, окончательное удаление рецепта — тоже.
+- КБЖУ дня: на человека — по порции каждого блюда; всего — на все порции; в среднем — по дням, где что-то есть. Блюдо-текст и рецепт без КБЖУ дают «≈».
+- Запасы распределяются по блюдам по порядку — день, приём пищи, место, — начиная с сегодняшнего дня; приготовленное уже своё взяло. Блюдо, на которое не хватит, помечается точкой; «Покупки на неделю» кладут всю нехватку в список с блюдом и днём в «для», второй раз — ничего (`WeekPlan.supply`, `addMenuShortages`).
+- «Приготовлено» сначала показывает, что спишется (`cookingUse`: только посчитанные продукты, без staple), списывает подтверждённое и запоминает его в `used`; отмена возвращает ровно это. Дата готовки идёт в `recipe_stats.lastCookedAt` — сортировка «Давно не готовили».
+- Перетаскивание: рецепт из списка — новое блюдо, блюдо — перенос, с ⌥ — копия; ⌫ убирает выбранные.
+
 ## Поиск, фильтры и сортировка
 
 - Запрос экрана — тип в `MealCore` (`ProductQuery`, `RecipeQuery`): текст, фильтры, сортировка. `MealStore` переводит его в SQL (`ProductListSQL`, `RecipeListSQL`); тот же запрос получат и MCP-инструменты.
@@ -122,13 +131,13 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 ## Хранилище и данные
 
 - База — `AppDatabase` (GRDB): `~/Library/Application Support/inco.mealplanner/meals.sqlite`, у Debug — папка `inco.mealplanner.debug`. И приложение, и MCP-сервер пишут через `DatabasePool` (WAL) с ожиданием блокировки до 5 секунд.
-- Схема меняется только новой миграцией в `AppDatabase.migrator`; уже применённые миграции не редактируем. Сейчас: `products`, `seed: products 1`, `recipes`, `pantry`.
+- Схема меняется только новой миграцией в `AppDatabase.migrator`; уже применённые миграции не редактируем. Сейчас: `products`, `seed: products 1`, `recipes`, `pantry`, `planner`.
 - `AppDatabase.inMemory()` — пустая база для тестов (фото — во временной папке), `inMemory(seeded: true)` — с начальной базой.
 
 ## MCP
 
 - Сервер `meal-planner` (`MealMCPServer`), транспорт stdio. Без аргументов внутри бандла работает с данными своего приложения (Debug — со своими); `--directory <папка>` — с указанной.
-- Инструменты: `get_status` (не создаёт базу, если её ещё нет), `list_aisles`; продукты — `search_products`, `get_product`, `upsert_product`, `merge_products`; категории — `list_categories`, `create_category`, `update_category`, `delete_category`; рецепты — `search_recipes`, `get_recipe` (с наличием дома), `create_recipe`, `update_recipe`, `delete_recipe` (в корзину), `set_recipe_image`; запасы — `get_pantry`, `set_pantry`, `adjust_pantry`; покупки — `get_shopping_list`, `add_to_shopping_list` (в том числе нехватка для рецепта), `check_shopping_items`, `remove_shopping_items`, `clear_checked`. Промпты — `import_recipe`, `fill_recipe`, `fill_nutrition`, `what_to_cook`, `migrate_from_notion`; их тексты и тексты кнопок «… с Claude» — одни и те же, в `ClaudeRequest`.
+- Инструменты: `get_status` (не создаёт базу, если её ещё нет), `list_aisles`; продукты — `search_products`, `get_product`, `upsert_product`, `merge_products`; категории — `list_categories`, `create_category`, `update_category`, `delete_category`; рецепты — `search_recipes`, `get_recipe` (с наличием дома), `create_recipe`, `update_recipe`, `delete_recipe` (в корзину), `set_recipe_image`; запасы — `get_pantry`, `set_pantry`, `adjust_pantry`; покупки — `get_shopping_list`, `add_to_shopping_list` (в том числе нехватка для рецепта или меню недели), `check_shopping_items`, `remove_shopping_items`, `clear_checked`; меню — `get_week_plan`, `plan_meal`, `move_meal`, `remove_meal`, `mark_cooked` (без `confirm` только показывает, что спишется), `week_nutrition`. Промпты — `import_recipe`, `fill_recipe`, `fill_nutrition`, `what_to_cook`, `plan_week`, `migrate_from_notion`; их тексты и тексты кнопок «… с Claude» — одни и те же, в `ClaudeRequest`.
 - Ответы — JSON со snake_case; ошибка вызова — `isError` и текст, по которому Claude может исправить вызов (`ToolError`, `StoreError`). Списки — `limit` (до 100) и `cursor` из `next_cursor` (это смещение).
 - Ингредиенты в `create_recipe` и `update_recipe` — строка (разбирает `IngredientParser`, продукт должен быть в базе) или объект `{name | product_id, amount, amount_max, unit, note, optional, group}`. Продукт ищется `matchProduct`: точное имя или синоним, иначе поиск; из нескольких найденных берётся тот, чьё имя или синоним — те же слова («сахара» → «Сахар»). Если строка подходит к нескольким продуктам или строки нет в базе, не пишется ничего; новые продукты из объектов и новые категории создаются только после проверки всех строк, а при ошибке сохранения удаляются. Ответ называет `created_products`, `created_categories` и `matched_by_search`.
 - Рецепт из Claude сохраняется одной транзакцией (`newRecipe(from:)`); `update_recipe` меняет только переданные поля, `unset` очищает поля, фото по `image_url` скачивается до записи, и рецепт сохраняется, даже если фото не скачалось (`image_problem`).

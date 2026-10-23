@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 
+@testable import MealPlanner
+
 /// Runs inside MealPlanner.app (the test host), so Bundle.main is the built app.
 struct PackagingTests {
     private let helper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/meal-planner-mcp")
@@ -57,5 +59,23 @@ struct PackagingTests {
         let status = try #require(try await lines.next())
         #expect(status.contains("Meal Planner & Recipes"))
         #expect(!status.contains(#""isError":true"#))
+    }
+}
+
+/// Dishes of the menu are dragged as a type of the app's own, declared in its Info.plist.
+struct MenuDragTests {
+    @Test func theMenusDragTypeIsDeclared() throws {
+        let declarations = try #require(
+            Bundle.main.object(forInfoDictionaryKey: "UTExportedTypeDeclarations") as? [[String: Any]])
+        let ours = try #require(
+            declarations.first { $0["UTTypeIdentifier"] as? String == "inco.mealplanner.plan-item" })
+        #expect((ours["UTTypeConformsTo"] as? [String])?.contains("public.data") == true)
+    }
+
+    @Test @MainActor func aDraggedDishSurvivesTheTrip() throws {
+        for item in [PlanDragItem.recipe(12), .entry(5)] {
+            let data = try JSONEncoder().encode(item)
+            #expect(try JSONDecoder().decode(PlanDragItem.self, from: data) == item)
+        }
     }
 }

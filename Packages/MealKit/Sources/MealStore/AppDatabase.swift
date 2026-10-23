@@ -105,6 +105,9 @@ public struct AppDatabase: Sendable {
         migrator.registerMigration("pantry") { db in
             try createPantryTables(db)
         }
+        migrator.registerMigration("planner") { db in
+            try createPlannerTables(db)
+        }
         return migrator
     }
 
@@ -239,6 +242,28 @@ public struct AppDatabase: Sendable {
                 WHERE recipe_ingredient.recipeId = recipe_stats.recipeId AND NOT recipe_ingredient.isOptional)
                 """)
         try db.create(index: "recipe_stats_on_missing", on: "recipe_stats", columns: ["missingCount"])
+    }
+
+    private static func createPlannerTables(_ db: Database) throws {
+        // A dish of the week's menu; see PlanEntry. The day is text, «2026-10-23», so it sorts and compares as days do.
+        try db.create(table: "plan_entry") { table in
+            table.autoIncrementedPrimaryKey("id")
+            table.column("day", .text).notNull()
+            table.column("mealTypeId", .integer).notNull().references("meal_type", onDelete: .cascade)
+            table.column("recipeId", .integer).references("recipe", onDelete: .cascade)
+            table.column("text", .text)
+            table.column("servings", .integer).notNull().defaults(to: Recipe.defaultServings)
+            table.column("position", .integer).notNull()
+            table.column("cookedAt", .datetime)
+            // What «Приготовлено» took from the pantry, {"productId": amount}: given back on undo.
+            table.column("used", .text).notNull().defaults(to: "{}")
+            table.column("createdAt", .datetime).notNull()
+        }
+        try db.create(index: "plan_entry_on_day", on: "plan_entry", columns: ["day", "mealTypeId", "position"])
+        try db.create(index: "plan_entry_on_recipe", on: "plan_entry", columns: ["recipeId"])
+        try db.alter(table: "recipe_stats") { table in
+            table.add(column: "lastCookedAt", .datetime)
+        }
     }
 
     /// The migrations applied to this database, in the order they were registered.

@@ -42,6 +42,27 @@ enum Formatting {
         }
     }
 
+    static let weekdays = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"]
+
+    private static let months = [
+        "января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября",
+        "декабря",
+    ]
+
+    /// «19–25 октября», «28 сентября – 4 октября».
+    static func week(_ start: Day) -> String {
+        let end = start.adding(days: 6)
+        if start.month == end.month {
+            return "\(start.day)–\(end.day) \(months[end.month - 1])"
+        }
+        return "\(start.day) \(months[start.month - 1]) – \(end.day) \(months[end.month - 1])"
+    }
+
+    /// «23 октября».
+    static func day(_ day: Day) -> String {
+        "\(day.day) \(months[day.month - 1])"
+    }
+
     /// «25 мин», «1 ч 30 мин».
     static func minutes(_ minutes: Int?) -> String {
         guard let minutes else { return "—" }

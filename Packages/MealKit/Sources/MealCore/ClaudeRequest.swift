@@ -12,7 +12,10 @@ public enum ClaudeRequest {
         Купленное — в запасы через check_shopping_items со stock или adjust_pantry.
         - Удалённый рецепт 30 дней лежит в корзине приложения.
         - Длинные списки читай частями: limit и cursor из next_cursor.
-        - Готовые сценарии — промпты import_recipe, fill_recipe, fill_nutrition, what_to_cook и migrate_from_notion.
+        - Меню — по дням («2026-10-23») и приёмам пищи; КБЖУ дня на человека — порция каждого блюда. «Приготовлено» \
+        (mark_cooked) списывает запасы только после моего согласия: сначала покажи, что спишется.
+        - Готовые сценарии — промпты import_recipe, fill_recipe, fill_nutrition, what_to_cook, plan_week и \
+        migrate_from_notion.
         """
 
     /// How products and their nutrition are filled: shared by the prompts that create products.
@@ -86,6 +89,23 @@ public enum ClaudeRequest {
             заканчивается (status low) — то лучше пустить в дело.
             3. Предложи три варианта: название, КБЖУ на порцию, время и чего не хватает. Коротко, без пересказа рецепта.
             4. Когда я выберу, предложи добавить недостающее в покупки: add_to_shopping_list с recipe.
+            """
+    }
+
+    /// «Меню на неделю из того, что есть».
+    public static func planWeek(week: String?, wishes: String?) -> String {
+        let which = week.map { "на неделю с днём \($0)" } ?? "на эту неделю"
+        let wished = wishes.map { " Пожелания: \($0)." } ?? ""
+        return """
+            Составь в Meal Planner меню \(which) из того, что есть дома.\(wished)
+
+            1. Посмотри get_week_plan: что уже запланировано, — и get_pantry: что есть, что заканчивается (status low).
+            2. Подбери рецепты через search_recipes: сначала те, для чего всё есть (max_missing 0, sort availability), и \
+            те, что давно не готовили (sort last_cooked). Разнообразь: не повторяй блюдо чаще двух раз за неделю, чередуй \
+            продукты; на человека выходи примерно на 1800–2200 ккал в день, если я не попросил иначе.
+            3. Предложи меню таблицей: дни × завтрак, обед, ужин, перекус — и КБЖУ за день. Порции — 2, едим вдвоём.
+            4. Когда я соглашусь, поставь блюда через plan_meal, затем положи недостающее в покупки: \
+            add_to_shopping_list с week. В конце — что добавлено в меню и в покупки.
             """
     }
 

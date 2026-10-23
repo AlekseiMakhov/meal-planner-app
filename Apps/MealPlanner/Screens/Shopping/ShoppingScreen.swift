@@ -472,6 +472,7 @@ struct ShoppingFilterBar: View {
                 }
                 Menu("Куплено") { checkedChoices }
                 Menu("Для блюда") { recipeChoices }
+                Menu("Для дня меню") { dayChoices }
             } label: {
                 Label("Фильтр", systemImage: "line.3.horizontal.decrease")
             }
@@ -498,6 +499,13 @@ struct ShoppingFilterBar: View {
                             query.isChecked = nil
                         } options: {
                             checkedChoices
+                        }
+                    }
+                    if let day = query.day.flatMap(Day.init) {
+                        FilterChip(title: "Для дня", value: Self.dayTitle(day)) {
+                            query.day = nil
+                        } options: {
+                            dayChoices
                         }
                     }
                     if let recipeID = query.recipeID {
@@ -528,6 +536,23 @@ struct ShoppingFilterBar: View {
         }
         .pickerStyle(.inline)
         .labelsHidden()
+    }
+
+    /// The days of this week's menu and the next one's.
+    @ViewBuilder private var dayChoices: some View {
+        Picker("Для дня меню", selection: $query.day) {
+            let start = Day.today().weekStart
+            ForEach(0..<14, id: \.self) { offset in
+                let day = start.adding(days: offset)
+                Text(Self.dayTitle(day)).tag(String?.some(day.description))
+            }
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+    }
+
+    static func dayTitle(_ day: Day) -> String {
+        "\(Formatting.weekdays[day.weekday - 1]), \(Formatting.day(day))"
     }
 
     @ViewBuilder private var recipeChoices: some View {

@@ -75,7 +75,7 @@ public struct MealTools: Sendable {
                 description:
                     "Отделы магазина по порядку: «Овощи и зелень», «Молочное и яйца»… Нужны, чтобы указать отдел продукта в upsert_product.",
                 inputSchema: schema([:]), annotations: readOnly),
-        ] + productTools + categoryTools + recipeTools + pantryTools
+        ] + productTools + categoryTools + recipeTools + pantryTools + plannerTools
 
     // MARK: - Calls
 
@@ -127,6 +127,16 @@ public struct MealTools: Sendable {
             case "check_shopping_items": output = try checkShoppingItems(arguments)
             case "remove_shopping_items": output = try removeShoppingItems(arguments)
             case "clear_checked": output = try clearChecked(arguments)
+            case "get_week_plan":
+                output = try getWeekPlan(arguments)
+                changed = false
+            case "week_nutrition":
+                output = try weekNutrition(arguments)
+                changed = false
+            case "plan_meal": output = try planMeal(arguments)
+            case "move_meal": output = try moveMeal(arguments)
+            case "remove_meal": output = try removeMeal(arguments)
+            case "mark_cooked": output = try markCooked(arguments)
             default: throw ToolError("У сервера нет инструмента «\(name)».")
             }
             if changed {

@@ -14,6 +14,8 @@ struct SectionScreen: View {
             RecipesScreen(database: database, categoryID: category)
         case (.products, let database?):
             ProductsScreen(database: database)
+        case (.planner, let database?):
+            PlannerScreen(database: database)
         case (.pantry, let database?):
             PantryScreen(database: database)
         case (.shopping, let database?):
@@ -30,9 +32,6 @@ struct SectionScreen: View {
     }
 
     private var upcoming: String {
-        switch section {
-        case .planner: "Сетка недели с перетаскиванием карточек появится на этапе 5."
-        case .recipes, .products, .pantry, .shopping: "База данных не открылась, поэтому показать нечего."
-        }
+        "База данных не открылась, поэтому показать нечего."
     }
 }

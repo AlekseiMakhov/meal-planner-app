@@ -1,3 +1,5 @@
+import Foundation
+
 /// From–to, either end optional: «до 300 ккал», «от 20 г белка».
 public struct ValueRange: Hashable, Sendable {
     public var min: Double?
@@ -20,6 +22,8 @@ public struct RecipeQuery: Hashable, Sendable {
         case title, kcalPer100, kcalPerServing, protein, fat, carbs, totalTime, createdAt, updatedAt
         /// How many ingredients are short at home: what can be cooked now comes first.
         case availability
+        /// When the dish was last cooked: what has not been cooked for longest comes first.
+        case lastCooked
         /// How well the recipe matches the search; without a search, the title.
         case relevance
     }
@@ -103,13 +107,15 @@ public struct RecipeCard: Identifiable, Hashable, Sendable {
     public var isNutritionComplete: Bool
     /// Ingredients short at home for the recipe's own servings, optional ones aside.
     public var missingCount: Int
+    /// When a dish of the menu with the recipe was last marked cooked.
+    public var lastCookedAt: Date?
     public var categoryIDs: [RecipeCategory.ID]
 
     public init(
         id: Recipe.ID, title: String, photo: String? = nil, hasVideo: Bool = false, isFavorite: Bool = false,
         servings: Int = Recipe.defaultServings, totalMinutes: Int? = nil, kcalPer100: Double? = nil,
         perServing: Nutrition? = nil, isNutritionComplete: Bool = true, missingCount: Int = 0,
-        categoryIDs: [RecipeCategory.ID] = []
+        lastCookedAt: Date? = nil, categoryIDs: [RecipeCategory.ID] = []
     ) {
         self.id = id
         self.title = title
@@ -122,6 +128,7 @@ public struct RecipeCard: Identifiable, Hashable, Sendable {
         self.perServing = perServing
         self.isNutritionComplete = isNutritionComplete
         self.missingCount = missingCount
+        self.lastCookedAt = lastCookedAt
         self.categoryIDs = categoryIDs
     }
 }

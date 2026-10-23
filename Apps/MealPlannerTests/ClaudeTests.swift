@@ -165,6 +165,10 @@ struct ClaudeWorkspaceTests {
         #expect(ClaudeRequest.fillNutrition(nil).contains("\"missing\""))
         #expect(ClaudeRequest.fillNutrition("«Фета»").contains("«Фета»"))
         #expect(ClaudeRequest.migrateFromNotion("Recipes").contains("create_recipe"))
+        #expect(ClaudeRequest.migrateFromNotion("Recipes").contains("Pantry"))
+        #expect(ClaudeRequest.whatToCook(meal: "Ужин", wishes: nil).contains("на ужин"))
+        #expect(ClaudeRequest.planWeek(week: "2026-10-19", wishes: "больше рыбы").contains("plan_meal"))
+        #expect(ClaudeRequest.planWeek(week: nil, wishes: "больше рыбы").contains("больше рыбы"))
     }
 }
 

@@ -30,7 +30,9 @@ struct ClaudeWorkspace {
     /// changing `instructions`, add the digest of the text it replaces.
     static let earlierDefaults: Set<String> = [
         // Stage 3, 23 October 2026: recipes, categories and products.
-        "9d0a0846c69e8824ebbac79f1ffcbddd19ab2a76341487f0d1a4fd2a2c11b96c"
+        "9d0a0846c69e8824ebbac79f1ffcbddd19ab2a76341487f0d1a4fd2a2c11b96c",
+        // Stage 4: the pantry and the shopping list.
+        "33f30a9d4b0ca142345658b64afe768153cd6b5c538390c6b2276018b81b8f9a",
     ]
 
     static func digest(_ data: Data) -> String {
@@ -50,8 +52,10 @@ struct ClaudeWorkspace {
         - рецепты: `search_recipes`, `get_recipe`, `create_recipe`, `update_recipe`, `delete_recipe` (в корзину), \
         `set_recipe_image`;
         - запасы: `get_pantry`, `set_pantry` (сколько есть), `adjust_pantry` (купил, ушло, закончилось);
-        - покупки: `get_shopping_list`, `add_to_shopping_list` (в том числе недостающее для рецепта), \
-        `check_shopping_items`, `remove_shopping_items`, `clear_checked`;
+        - покупки: `get_shopping_list`, `add_to_shopping_list` (в том числе недостающее для рецепта или для меню \
+        недели), `check_shopping_items`, `remove_shopping_items`, `clear_checked`;
+        - меню на неделю: `get_week_plan`, `plan_meal`, `move_meal`, `remove_meal`, `mark_cooked` (сначала без \
+        confirm — показать, что спишется), `week_nutrition`;
         - `get_status` — версия сервера и состояние базы.
 
         ## Правила
@@ -68,6 +72,12 @@ struct ClaudeWorkspace {
         `search_recipes` с `max_missing` 0 — то, для чего всё есть дома; `sort: availability` — сначала такие. В \
         `get_recipe` у каждой строки `at_home` и `need_more`. Недостающее — в покупки через `add_to_shopping_list` с \
         `recipe`.
+
+        ## Меню на неделю
+
+        Сначала `get_week_plan` и `get_pantry`; рецепты — через `search_recipes` (`max_missing`, `sort: availability` \
+        или `last_cooked`). Предложи меню таблицей и, когда я соглашусь, поставь его через `plan_meal`; недостающее \
+        — `add_to_shopping_list` с `week`. Едим вдвоём: 2 порции.
 
         ## Рецепт по ссылке
 

@@ -184,4 +184,45 @@ struct RecipeStatsRecord: Codable, FetchableRecord, PersistableRecord {
     var totalMinutes: Int?
     var isNutritionComplete: Bool
     var missingCount: Int
+    var lastCookedAt: Date?
+}
+
+struct PlanEntryRecord: Codable, FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "plan_entry"
+
+    var id: Int64?
+    var day: String
+    var mealTypeId: Int64
+    var recipeId: Int64?
+    var text: String?
+    var servings: Int
+    var position: Int
+    var cookedAt: Date?
+    /// Product ids as JSON keys.
+    var used: [String: Double]
+    var createdAt: Date
+
+    init(_ entry: PlanEntry, id: Int64?, createdAt: Date = .now) {
+        self.id = id
+        day = entry.day.description
+        mealTypeId = entry.mealTypeID
+        recipeId = entry.recipeID
+        text = entry.text
+        servings = entry.servings
+        position = entry.position
+        cookedAt = entry.cookedAt
+        used = Dictionary(uniqueKeysWithValues: entry.used.map { (String($0.key), $0.value) })
+        self.createdAt = createdAt
+    }
+
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+
+    var entry: PlanEntry {
+        PlanEntry(
+            id: id ?? 0, day: Day(day) ?? Day(year: 1970, month: 1, day: 1), mealTypeID: mealTypeId, recipeID: recipeId,
+            text: text, servings: servings, position: position, cookedAt: cookedAt,
+            used: Dictionary(uniqueKeysWithValues: used.compactMap { key, value in Int64(key).map { ($0, value) } }))
+    }
 }

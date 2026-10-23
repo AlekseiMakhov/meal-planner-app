@@ -312,6 +312,10 @@ struct PantryFilterBar: View {
                     .toggleStyle(.button)
                     .controlSize(.small)
             }
+            Toggle("Для меню недели", isOn: forMenu)
+                .toggleStyle(.button)
+                .controlSize(.small)
+                .help("Продукты, которые нужны блюдам меню на этой неделе, начиная с сегодня")
 
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
@@ -348,6 +352,16 @@ struct PantryFilterBar: View {
                     set: { isOn in
                         if isOn { query.aisleIDs.insert(aisle.id) } else { query.aisleIDs.remove(aisle.id) }
                     }))
+        }
+    }
+
+    /// The rest of this week's menu, from today.
+    private var forMenu: Binding<Bool> {
+        Binding {
+            query.menuDays != nil
+        } set: { isOn in
+            let today = Day.today()
+            query.menuDays = isOn ? today...today.weekStart.adding(days: 6) : nil
         }
     }
 

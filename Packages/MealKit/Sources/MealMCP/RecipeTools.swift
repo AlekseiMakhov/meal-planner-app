@@ -102,7 +102,7 @@ extension MealTools {
                     "sort": choice(
                         [
                             "title", "kcal_per_100g", "kcal_per_serving", "protein", "fat", "carbs", "total_time",
-                            "created", "updated", "availability", "relevance",
+                            "created", "updated", "availability", "last_cooked", "relevance",
                         ],
                         "Порядок; по умолчанию title, с query — relevance; availability — сначала то, для чего всё есть."
                     ),
@@ -185,7 +185,7 @@ extension MealTools {
         let keys: [String: RecipeQuery.SortKey] = [
             "title": .title, "kcal_per_100g": .kcalPer100, "kcal_per_serving": .kcalPerServing, "protein": .protein,
             "fat": .fat, "carbs": .carbs, "total_time": .totalTime, "created": .createdAt, "updated": .updatedAt,
-            "availability": .availability, "relevance": .relevance,
+            "availability": .availability, "last_cooked": .lastCooked, "relevance": .relevance,
         ]
         let sort = try arguments.string("sort") ?? (query.text.isEmpty ? "title" : "relevance")
         guard let key = keys[sort] else { throw ToolError("Нет сортировки «\(sort)».") }

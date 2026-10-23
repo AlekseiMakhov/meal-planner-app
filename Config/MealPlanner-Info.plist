@@ -14,5 +14,19 @@
 			</array>
 		</dict>
 	</array>
+	<!-- A dish of the week's menu while it is dragged: from the recipe list to a cell, or between cells. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>inco.mealplanner.plan-item</string>
+			<key>UTTypeDescription</key>
+			<string>Блюдо меню</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

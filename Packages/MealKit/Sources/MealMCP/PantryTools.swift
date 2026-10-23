@@ -121,6 +121,8 @@ extension MealTools {
                 ]),
                 "recipe": string("Рецепт, для которого купить недостающее: id или название."),
                 "servings": integer("Порций рецепта; по умолчанию — как в рецепте."),
+                "week": string(
+                    "Любой день недели: недостающее на блюда меню этой недели, с сегодняшнего дня, с днём в «для»."),
             ]),
             annotations: changes),
         Tool(
@@ -396,7 +398,15 @@ extension MealTools {
             ids += try database.addShortages(ofRecipe: id, servings: servings)
             recipeTitle = try database.recipe(id: id)?.recipe.title
         }
-        guard !additions.isEmpty || recipeTitle != nil else { throw ToolError("Нужно items или recipe.") }
+        var forWeek = false
+        if arguments.has("week") {
+            let start = try week(arguments)
+            ids += try database.addMenuShortages(week: start, from: max(Day.today(), start))
+            forWeek = true
+        }
+        guard !additions.isEmpty || recipeTitle != nil || forWeek else {
+            throw ToolError("Нужно items, recipe или week.")
+        }
         let aisles = try aisleNames(database)
         let entries = try database.shoppingEntries(ids: ids)
         var result: [String: Value] = [
@@ -404,6 +414,8 @@ extension MealTools {
         ]
         if let recipeTitle, entries.isEmpty {
             result["note"] = .string("Для «\(recipeTitle)» ничего не нужно: всё есть дома или уже в списке.")
+        } else if forWeek, entries.isEmpty {
+            result["note"] = .string("На меню недели всё есть дома или уже в списке.")
         }
         return .object(result)
     }

@@ -343,3 +343,55 @@ struct PantryToolTests {
         #expect(try await fixture.call("get_shopping_list")["total"]?.intValue == 2)
     }
 }
+
+struct PlannerToolTests {
+    @Test func dishesArePlannedReadCookedAndBoughtFor() async throws {
+        let fixture = try ToolFixture()
+        _ = try await fixture.call("create_recipe", ["title": "Омлет", "ingredients": ["3 яйца", "100 мл молока"]])
+        _ = try await fixture.call(
+            "set_pantry", ["items": [["product": "яйца", "quantity": 4], ["product": "молоко"]]])
+        let breakfast = try await fixture.call("plan_meal", ["date": "сегодня", "meal": "завтрак", "recipe": "омлет"])
+        #expect(breakfast["servings"]?.intValue == 2)
+        let dinner = try await fixture.call(
+            "plan_meal", ["date": .string(Day.today().description), "meal": "ужин", "recipe": "Омлет"])
+        _ = try await fixture.call("plan_meal", ["date": "сегодня", "meal": "обед", "text": "Обед в кафе"])
+
+        let week = try await fixture.call("get_week_plan")
+        let today = try #require(week["days"]?.arrayValue?.first { $0["date"]?.stringValue == Day.today().description })
+        let dishes = try #require(today["dishes"]?.arrayValue)
+        #expect(dishes.map { $0["title"]?.stringValue ?? "" } == ["Омлет", "Обед в кафе", "Омлет"])
+        // Four eggs: three for breakfast, one left for dinner.
+        #expect(dishes.map { $0["short"]?.boolValue ?? false } == [false, false, true])
+        #expect(today["nutrition"]?["dishes_without_nutrition"]?.intValue == 1)
+        #expect(try await fixture.call("week_nutrition")["average_day"] != .null)
+
+        let preview = try await fixture.call("mark_cooked", ["id": breakfast["id"]!])
+        #expect(preview["would_take"]?[0]?["product"]?.stringValue == "Яйцо куриное")
+        #expect(preview["would_take"]?[0]?["amount"]?.intValue == 3)
+        #expect(try await fixture.call("get_pantry", ["query": "яйца"])["items"]?[0]?["quantity"]?.intValue == 4)
+        _ = try await fixture.call(
+            "mark_cooked", ["id": breakfast["id"]!, "confirm": true, "amounts": ["Яйцо куриное": 2]])
+        #expect(try await fixture.call("get_pantry", ["query": "яйца"])["items"]?[0]?["quantity"]?.intValue == 2)
+        #expect(await fixture.failure("mark_cooked", ["id": breakfast["id"]!, "confirm": true]).contains("уже"))
+
+        let moved = try await fixture.call("move_meal", ["id": dinner["id"]!, "meal": "обед", "servings": 4])
+        #expect(moved["meal"]?.stringValue == "Обед")
+        #expect(moved["servings"]?.intValue == 4)
+        let bought = try await fixture.call("add_to_shopping_list", ["week": "сегодня"])
+        #expect(bought["added_or_grown"]?.each("name") == ["Яйцо куриное"])
+        #expect(bought["added_or_grown"]?[0]?["amount"]?.intValue == 4)
+
+        _ = try await fixture.call("mark_cooked", ["id": breakfast["id"]!, "undo": true])
+        #expect(try await fixture.call("get_pantry", ["query": "яйца"])["items"]?[0]?["quantity"]?.intValue == 4)
+        _ = try await fixture.call("remove_meal", ["ids": [breakfast["id"]!, dinner["id"]!]])
+        let after = try await fixture.call("get_week_plan", ["week": .string(Day.today().description)])
+        let left = after["days"]?.arrayValue?.flatMap { $0["dishes"]?.arrayValue ?? [] } ?? []
+        #expect(left.map { $0["title"]?.stringValue ?? "" } == ["Обед в кафе"])
+        #expect(
+            await fixture.failure("plan_meal", ["date": "послезавтра", "meal": "ужин", "text": "x"]).contains("не день")
+        )
+        #expect(
+            await fixture.failure("plan_meal", ["date": "сегодня", "meal": "полдник", "text": "x"]).contains(
+                "Нет приёма"))
+    }
+}

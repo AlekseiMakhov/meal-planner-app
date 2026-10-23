@@ -241,6 +241,7 @@ extension RecipeQuery.SortKey {
         case .createdAt: "Дата добавления"
         case .updatedAt: "Дата изменения"
         case .availability: "Наличие продуктов"
+        case .lastCooked: "Давно не готовили"
         case .relevance: "Совпадение с поиском"
         }
     }
@@ -270,6 +271,8 @@ struct RecipeOrder: SortComparator, Hashable {
             case .carbs: compareValues(lhs.perServing?.carbs, rhs.perServing?.carbs)
             case .totalTime: compareValues(lhs.totalMinutes, rhs.totalMinutes)
             case .availability: compareValues(lhs.missingCount, rhs.missingCount)
+            case .lastCooked:
+                compareValues(lhs.lastCookedAt ?? .distantPast, rhs.lastCookedAt ?? .distantPast)
             case .title, .createdAt, .updatedAt, .relevance:
                 compareValues(SearchText.normalized(lhs.title), SearchText.normalized(rhs.title))
             }

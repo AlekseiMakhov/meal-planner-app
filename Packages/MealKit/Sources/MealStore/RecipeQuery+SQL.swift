@@ -44,7 +44,7 @@ enum RecipeListSQL {
     private static let columns: SQL = """
         recipe.id, recipe.title, recipe.photo, recipe.videoURL, recipe.isFavorite, recipe.servings, \
         stats.totalMinutes, stats.kcalPer100, stats.kcalPerServing, stats.proteinPerServing, stats.fatPerServing, \
-        stats.carbsPerServing, stats.isNutritionComplete, stats.missingCount
+        stats.carbsPerServing, stats.isNutritionComplete, stats.missingCount, stats.lastCookedAt
         """
 
     private static func card(_ row: Row) -> RecipeCard {
@@ -58,7 +58,7 @@ enum RecipeListSQL {
             id: row["id"], title: row["title"], photo: row["photo"], hasVideo: (row["videoURL"] as String?) != nil,
             isFavorite: row["isFavorite"], servings: row["servings"], totalMinutes: row["totalMinutes"],
             kcalPer100: row["kcalPer100"], perServing: perServing, isNutritionComplete: row["isNutritionComplete"],
-            missingCount: row["missingCount"])
+            missingCount: row["missingCount"], lastCookedAt: row["lastCookedAt"])
     }
 
     private static func categoryIDs(_ db: Database, recipes: [Recipe.ID]) throws -> [Recipe.ID: [RecipeCategory.ID]] {
@@ -169,6 +169,14 @@ enum RecipeListSQL {
         let searching = ProductListSQL.matchPattern(query.text) != nil
         for term in query.sort {
             let direction = term.direction == .ascending ? "ASC" : "DESC"
+            if term.key == .lastCooked {
+                // «Давно не готовил»: never cooked first, then the longest ago; the other way, the latest first.
+                terms += [
+                    "stats.lastCookedAt IS \(term.direction == .ascending ? "NOT " : "")NULL",
+                    "stats.lastCookedAt \(direction)",
+                ]
+                continue
+            }
             let column: String? =
                 switch term.key {
                 case .title: "stats.titleKey"
@@ -181,6 +189,7 @@ enum RecipeListSQL {
                 case .createdAt: "recipe.createdAt"
                 case .updatedAt: "recipe.updatedAt"
                 case .availability: "stats.missingCount"
+                case .lastCooked: nil
                 case .relevance: searching ? "found.matchRank" : nil
                 }
             guard let column else { continue }

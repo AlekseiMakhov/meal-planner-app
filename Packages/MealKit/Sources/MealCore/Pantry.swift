@@ -299,20 +299,24 @@ public struct PantryQuery: Hashable, Sendable {
     public var aisleIDs: Set<Int64>
     /// Empty: any status.
     public var statuses: Set<PantryStatus>
+    /// Products the dishes of the menu on these days still need: not cooked yet.
+    public var menuDays: ClosedRange<Day>?
     public var sort: [SortTerm<SortKey>]
 
     public init(
         text: String = "", aisleIDs: Set<Int64> = [], statuses: Set<PantryStatus> = [],
+        menuDays: ClosedRange<Day>? = nil,
         sort: [SortTerm<SortKey>] = [SortTerm(.aisle)]
     ) {
         self.text = text
         self.aisleIDs = aisleIDs
         self.statuses = statuses
+        self.menuDays = menuDays
         self.sort = sort
     }
 
     public var filterCount: Int {
-        [!aisleIDs.isEmpty, !statuses.isEmpty].filter { $0 }.count
+        [!aisleIDs.isEmpty, !statuses.isEmpty, menuDays != nil].filter { $0 }.count
     }
 
     public var withoutFilters: PantryQuery {
