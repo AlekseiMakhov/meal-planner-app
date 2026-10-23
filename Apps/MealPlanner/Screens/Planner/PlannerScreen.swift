@@ -290,6 +290,8 @@ struct PlannerScreen: View {
                     model.askClaude(ClaudeRequest.planWeek(week: weekStart.description, wishes: nil))
                 }
                 Button("Скопировать прошлую неделю", action: copyLastWeek)
+                Button("PDF меню в iCloud Drive", systemImage: "doc.richtext", action: exportPDF)
+                    .disabled(plan?.entries.isEmpty ?? true)
                 Divider()
                 Toggle("На человека", isOn: $showsPerPerson)
                 Toggle("Всего, на все порции", isOn: $showsTotal)
@@ -379,6 +381,28 @@ struct PlannerScreen: View {
                 count == 0
                     ? "На прошлой неделе нечего копировать"
                     : "Скопировано: \(Formatting.count(count, "блюдо", "блюда", "блюд"))")
+        }
+    }
+
+    /// The week and its recipes as a PDF in iCloud Drive, or wherever the save panel says without it.
+    private func exportPDF() {
+        guard let plan else { return }
+        if let folder = MenuPDF.iCloudFolder {
+            let file = folder.appending(path: MenuPDF.fileName(plan))
+            run {
+                try MenuPDF.write(plan, images: database.images, to: file)
+                NSWorkspace.shared.activateFileViewerSelecting([file])
+                show("PDF в iCloud Drive → Meal Planner")
+            }
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = MenuPDF.fileName(plan)
+        panel.allowedContentTypes = [.pdf]
+        guard panel.runModal() == .OK, let file = panel.url else { return }
+        run {
+            try MenuPDF.write(plan, images: database.images, to: file)
+            show("PDF сохранён")
         }
     }
 
