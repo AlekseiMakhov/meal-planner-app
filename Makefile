@@ -16,7 +16,7 @@ XCODEBUILD := xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
 SWIFT_SOURCES := Apps $(PACKAGE)/Package.swift $(PACKAGE)/Sources $(PACKAGE)/Tests
 
 .DEFAULT_GOAL := build
-.PHONY: project build test test-package test-app run install mcp-inspect format lint clean
+.PHONY: project build test test-package test-app run install mcp-inspect format lint perf seed clean
 
 project:
 	xcodegen generate --use-cache --quiet
@@ -50,6 +50,17 @@ format:
 
 lint:
 	xcrun swift-format lint --strict --recursive $(SWIFT_SOURCES)
+
+# The list budget (first block under 50 ms, search and order under 100 ms on 20 000 products) is for
+# optimized builds.
+perf:
+	MEAL_PERF=1 swift test --package-path $(PACKAGE) -c release -Xswiftc -enable-testing --filter PerformanceTests
+
+# Rebuilds the starting product base from Tools/seed/catalog.py. USDA is the unpacked
+# FoodData_Central_sr_legacy_food_csv_2018-04 folder from https://fdc.nal.usda.gov/download-datasets.
+seed:
+	@test -n "$(USDA)" || (echo 'usage: make seed USDA=<folder of the SR Legacy CSV files>' && exit 1)
+	python3 -I Tools/seed/build.py "$(USDA)"
 
 clean:
 	rm -rf build $(PACKAGE)/.build

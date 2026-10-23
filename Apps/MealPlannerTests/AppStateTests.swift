@@ -1,4 +1,5 @@
 import AppKit
+import MealCore
 import Testing
 
 @testable import MealPlanner
@@ -25,6 +26,12 @@ struct AppStateTests {
         #expect(model.problem == nil)
         #expect(model.database != nil)
         #expect(try #require(model.dataDirectory).lastPathComponent == "inco.mealplanner.debug")
+    }
+
+    @Test func theDatabaseStartsWithTheProductBase() throws {
+        let database = try #require(AppModel().database)
+        #expect(try database.products(ProductQuery(), limit: 1).total > 0)
+        #expect(try database.aisles().count == 18)
     }
 
     @Test func colorTokensComeFromTheAssetCatalog() {

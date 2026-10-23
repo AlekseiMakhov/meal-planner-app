@@ -1,17 +1,24 @@
+import MealStore
 import SwiftUI
 
-/// A section's screen. Each one arrives with its stage of the plan; until then it says which.
+/// A section's screen. Sections arrive with their stages of the plan; until then the screen says when.
 struct SectionScreen: View {
     let section: AppModel.Section
+    let database: AppDatabase?
 
     var body: some View {
-        ContentUnavailableView {
-            Label(section.title, systemImage: section.symbol)
-        } description: {
-            Text(upcoming)
-                .foregroundStyle(Color(.textSecondary))
+        switch (section, database) {
+        case (.products, let database?):
+            ProductsScreen(database: database)
+        default:
+            ContentUnavailableView {
+                Label(section.title, systemImage: section.symbol)
+            } description: {
+                Text(upcoming)
+                    .foregroundStyle(Color(.textSecondary))
+            }
+            .foregroundStyle(Color(.textPrimary))
         }
-        .foregroundStyle(Color(.textPrimary))
     }
 
     private var upcoming: String {
@@ -20,7 +27,7 @@ struct SectionScreen: View {
         case .planner: "Сетка недели с перетаскиванием карточек появится на этапе 5."
         case .pantry: "Запасы дома появятся на этапе 4."
         case .shopping: "Список покупок появится на этапе 4, синхронизация с «Напоминаниями» — на этапе 6."
-        case .products: "База продуктов с КБЖУ появится на этапе 1."
+        case .products: "База данных не открылась, поэтому продуктов не показать."
         }
     }
 }

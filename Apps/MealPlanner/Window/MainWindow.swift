@@ -20,7 +20,7 @@ struct MainWindow: View {
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
         } detail: {
-            SectionScreen(section: model.section)
+            SectionScreen(section: model.section, database: model.database)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.canvas))
         }

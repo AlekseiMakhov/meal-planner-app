@@ -55,7 +55,7 @@ struct MealMCPServerTests {
         _ = try AppDatabase.open(in: folder)
         let status = try output(await tools.call("get_status"))
         #expect(status["database"]?["exists"]?.boolValue == true)
-        #expect(status["database"]?["migrations"] == .array([]))
+        #expect(status["database"]?["migrations"] == .array(["products", "seed: products 1"]))
     }
 
     @Test func unknownToolIsReportedAsToolError() async {
