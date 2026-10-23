@@ -33,6 +33,12 @@ enum ToolOutput {
         value.map(Value.string) ?? .null
     }
 
+    /// An amount in a sentence: «545», «1.5».
+    static func text(amount: Double) -> String {
+        let rounded = (amount * 100).rounded() / 100
+        return rounded == rounded.rounded() && abs(rounded) < 1e12 ? String(Int(rounded)) : String(rounded)
+    }
+
     static func id(_ value: Int64) -> Value {
         .int(Int(value))
     }
@@ -83,12 +89,57 @@ enum ToolOutput {
             "favorite": .bool(card.isFavorite),
             "has_photo": .bool(card.photo != nil),
             "has_video": .bool(card.hasVideo),
+            "missing_count": .int(card.missingCount),
         ])
     }
 
-    /// A whole recipe, its lines for `servings` when asked: amounts scale, nutrition per serving does not.
+    static func status(_ status: PantryStatus) -> String {
+        switch status {
+        case .inStock: "in_stock"
+        case .low: "low"
+        case .out: "out"
+        }
+    }
+
+    static func pantry(_ entry: PantryEntry, aisles: [Int64: String]) -> Value {
+        .object([
+            "product_id": id(entry.product.id),
+            "product": .string(entry.product.name),
+            "aisle": text(entry.product.aisleID.flatMap { aisles[$0] }),
+            "quantity": number(entry.item.quantity, places: 2),
+            "unit": .string(entry.product.baseUnit.rawValue),
+            "status": .string(status(entry.item.status)),
+            "low": .bool(entry.item.isLow),
+            "staple": .bool(entry.product.isStaple),
+            "updated_at": time(entry.item.updatedAt),
+        ])
+    }
+
+    static func shopping(_ entry: ShoppingEntry, aisles: [Int64: String]) -> Value {
+        .object([
+            "id": id(entry.item.id),
+            "name": .string(entry.name),
+            "product_id": entry.item.productID.map(id) ?? .null,
+            "aisle": text(entry.product?.aisleID.flatMap { aisles[$0] }),
+            "amount": number(entry.item.amount, places: 2),
+            "unit": text(entry.item.amount == nil ? nil : (entry.item.unit ?? .piece).rawValue),
+            "for": .array(
+                entry.item.reasons.map { reason in
+                    .object([
+                        "title": .string(reason.title), "recipe_id": reason.recipeID.map(id) ?? .null,
+                        "day": text(reason.day),
+                    ])
+                }),
+            "checked": .bool(entry.item.isChecked),
+            "in_pantry": .bool(entry.item.stockedAt != nil),
+        ])
+    }
+
+    /// A whole recipe, its lines for `servings` when asked: amounts scale, nutrition per serving does not. With the
+    /// pantry, each line says whether there is enough at home.
     static func recipe(
-        _ details: RecipeDetails, servings: Int?, categories: [Int64: String], mealTypes: [Int64: String]
+        _ details: RecipeDetails, servings: Int?, categories: [Int64: String], mealTypes: [Int64: String],
+        pantry: [Product.ID: PantryItem]? = nil
     ) -> Value {
         let recipe = details.recipe
         let nutrition = details.nutrition
@@ -104,9 +155,27 @@ enum ToolOutput {
                     missing.append(.string("«\(product.name)»: не пересчитать в граммы"))
                 }
             }
+            var atHome: Value = .null
+            var needMore: Value = .null
+            if let pantry, let product {
+                let availability = scaled.availability(of: product, at: pantry[product.id])
+                switch availability {
+                case .enough: atHome = "enough"
+                case .low(let missing):
+                    atHome = "low"
+                    needMore = number(missing, places: 2)
+                case .missing(let needed):
+                    atHome = "missing"
+                    needMore = number(needed, places: 2)
+                case .unknown: atHome = "unknown"
+                }
+            }
             return .object([
                 "product_id": id(line.productID),
                 "product": text(product?.name),
+                "at_home": atHome,
+                "need_more": needMore,
+                "pantry_unit": text(product?.baseUnit.rawValue),
                 "amount": number(scaled.amount, places: 2),
                 "amount_max": number(scaled.amountMax, places: 2),
                 "unit": text(scaled.effectiveUnit?.rawValue),
@@ -135,6 +204,8 @@ enum ToolOutput {
             "favorite": .bool(recipe.isFavorite),
             "in_trash": .bool(recipe.deletedAt != nil),
             "ingredients": .array(lines),
+            "missing_count": pantry.map { .int(details.availability(servings: shown, pantry: $0).missingCount) }
+                ?? .null,
             "steps": .array(details.steps.map { .string($0.text) }),
             "nutrition": .object([
                 "per_100g": self.nutrition(nutrition.per100g),

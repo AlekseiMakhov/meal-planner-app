@@ -44,7 +44,7 @@ enum RecipeListSQL {
     private static let columns: SQL = """
         recipe.id, recipe.title, recipe.photo, recipe.videoURL, recipe.isFavorite, recipe.servings, \
         stats.totalMinutes, stats.kcalPer100, stats.kcalPerServing, stats.proteinPerServing, stats.fatPerServing, \
-        stats.carbsPerServing, stats.isNutritionComplete
+        stats.carbsPerServing, stats.isNutritionComplete, stats.missingCount
         """
 
     private static func card(_ row: Row) -> RecipeCard {
@@ -57,7 +57,8 @@ enum RecipeListSQL {
         return RecipeCard(
             id: row["id"], title: row["title"], photo: row["photo"], hasVideo: (row["videoURL"] as String?) != nil,
             isFavorite: row["isFavorite"], servings: row["servings"], totalMinutes: row["totalMinutes"],
-            kcalPer100: row["kcalPer100"], perServing: perServing, isNutritionComplete: row["isNutritionComplete"])
+            kcalPer100: row["kcalPer100"], perServing: perServing, isNutritionComplete: row["isNutritionComplete"],
+            missingCount: row["missingCount"])
     }
 
     private static func categoryIDs(_ db: Database, recipes: [Recipe.ID]) throws -> [Recipe.ID: [RecipeCategory.ID]] {
@@ -149,6 +150,9 @@ enum RecipeListSQL {
         if let incomplete = query.nutritionIncomplete {
             conditions.append("stats.isNutritionComplete = \(!incomplete)")
         }
+        if let maxMissing = query.maxMissing {
+            conditions.append("stats.missingCount <= \(maxMissing)")
+        }
         let hidden = collapsed.compactMap { $0 }.sorted()
         if !hidden.isEmpty {
             conditions.append("rc.categoryId IS NULL OR rc.categoryId NOT IN \(hidden)")
@@ -176,6 +180,7 @@ enum RecipeListSQL {
                 case .totalTime: "stats.totalMinutes"
                 case .createdAt: "recipe.createdAt"
                 case .updatedAt: "recipe.updatedAt"
+                case .availability: "stats.missingCount"
                 case .relevance: searching ? "found.matchRank" : nil
                 }
             guard let column else { continue }

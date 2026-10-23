@@ -110,6 +110,8 @@ struct RecipeCardView: View {
                     .font(.callout)
                     .foregroundStyle(Color(.textSecondary))
                     .lineLimit(1)
+                MissingLabel(count: card.missingCount)
+                    .font(.callout)
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -155,6 +157,25 @@ struct RecipeCardView: View {
         let serving = card.perServing.map { "порция \(approximate)\(Formatting.number($0.kcal, digits: 0)) ккал" }
         let parts = [per100, serving].compactMap { $0 }
         return parts.isEmpty ? "КБЖУ не посчитано" : parts.joined(separator: " · ")
+    }
+}
+
+/// «Всё есть» or «Не хватает 2»: what the pantry lacks for the recipe's own servings.
+struct MissingLabel: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(count == 0 ? Color(.statusInStock) : Color(.statusMissing))
+                .frame(width: 7, height: 7)
+            Text(count == 0 ? "Всё есть" : "Не хватает \(count)")
+                .foregroundStyle(Color(.textSecondary))
+        }
+        .help(
+            count == 0
+                ? "Дома есть всё для рецепта"
+                : "Дома не хватает \(Formatting.count(count, "ингредиента", "ингредиентов", "ингредиентов"))")
     }
 }
 
@@ -215,6 +236,10 @@ struct RecipeTable: View {
                     .foregroundStyle(Color(.textSecondary))
             }
             .width(70)
+            TableColumn("Наличие", sortUsing: RecipeOrder(.availability)) { card in
+                MissingLabel(count: card.missingCount)
+            }
+            .width(min: 90, ideal: 110)
             TableColumn("Порции") { card in
                 Text("\(card.servings)")
                     .monospacedDigit()

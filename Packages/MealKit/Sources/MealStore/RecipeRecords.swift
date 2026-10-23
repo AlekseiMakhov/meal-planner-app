@@ -183,4 +183,5 @@ struct RecipeStatsRecord: Codable, FetchableRecord, PersistableRecord {
     var carbsPerServing: Double?
     var totalMinutes: Int?
     var isNutritionComplete: Bool
+    var missingCount: Int
 }

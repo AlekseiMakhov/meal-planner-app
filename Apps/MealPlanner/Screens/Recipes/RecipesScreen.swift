@@ -240,6 +240,7 @@ extension RecipeQuery.SortKey {
         case .totalTime: "Время"
         case .createdAt: "Дата добавления"
         case .updatedAt: "Дата изменения"
+        case .availability: "Наличие продуктов"
         case .relevance: "Совпадение с поиском"
         }
     }
@@ -268,6 +269,7 @@ struct RecipeOrder: SortComparator, Hashable {
             case .fat: compareValues(lhs.perServing?.fat, rhs.perServing?.fat)
             case .carbs: compareValues(lhs.perServing?.carbs, rhs.perServing?.carbs)
             case .totalTime: compareValues(lhs.totalMinutes, rhs.totalMinutes)
+            case .availability: compareValues(lhs.missingCount, rhs.missingCount)
             case .title, .createdAt, .updatedAt, .relevance:
                 compareValues(SearchText.normalized(lhs.title), SearchText.normalized(rhs.title))
             }

@@ -14,6 +14,10 @@ struct SectionScreen: View {
             RecipesScreen(database: database, categoryID: category)
         case (.products, let database?):
             ProductsScreen(database: database)
+        case (.pantry, let database?):
+            PantryScreen(database: database)
+        case (.shopping, let database?):
+            ShoppingScreen(database: database)
         default:
             ContentUnavailableView {
                 Label(section.title, systemImage: section.symbol)
@@ -28,9 +32,7 @@ struct SectionScreen: View {
     private var upcoming: String {
         switch section {
         case .planner: "Сетка недели с перетаскиванием карточек появится на этапе 5."
-        case .pantry: "Запасы дома появятся на этапе 4."
-        case .shopping: "Список покупок появится на этапе 4, синхронизация с «Напоминаниями» — на этапе 6."
-        case .recipes, .products: "База данных не открылась, поэтому показать нечего."
+        case .recipes, .products, .pantry, .shopping: "База данных не открылась, поэтому показать нечего."
         }
     }
 }

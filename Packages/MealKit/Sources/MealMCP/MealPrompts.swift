@@ -33,6 +33,16 @@ public enum MealPrompts {
                     description: "Названия через запятую; пусто — все продукты без КБЖУ.", required: false)
             ]),
         Prompt(
+            name: "what_to_cook", title: "Что приготовить",
+            description: "Подобрать рецепты из того, что есть дома, и добавить недостающее в покупки.",
+            arguments: [
+                Prompt.Argument(
+                    name: "meal", title: "Приём пищи", description: "Завтрак, обед, ужин или перекус.", required: false),
+                Prompt.Argument(
+                    name: "wishes", title: "Пожелания", description: "«Быстро», «без мяса», «до 400 ккал».",
+                    required: false),
+            ]),
+        Prompt(
             name: "migrate_from_notion", title: "Перенести рецепты из Notion",
             description: "Перенести рецепты из базы Notion: фото, ингредиенты с количеством, шаги, категории и ссылки.",
             arguments: [
@@ -60,6 +70,8 @@ public enum MealPrompts {
             text = ClaudeRequest.fillRecipe(Int(recipe) == nil ? "«\(recipe)»" : "с id \(recipe)")
         case "fill_nutrition":
             text = ClaudeRequest.fillNutrition(value("products"))
+        case "what_to_cook":
+            text = ClaudeRequest.whatToCook(meal: value("meal"), wishes: value("wishes"))
         default:
             text = ClaudeRequest.migrateFromNotion(value("database") ?? "Recipes")
         }

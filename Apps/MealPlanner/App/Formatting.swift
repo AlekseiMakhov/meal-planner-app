@@ -33,6 +33,15 @@ enum Formatting {
         return (text, unit.title(for: ingredient.amountMax ?? amount))
     }
 
+    /// An amount as people say it: «200 г», «1,5 кг», «750 мл», «1 л», «3 шт.», «1 пучок».
+    static func quantity(_ value: Double, _ unit: MeasureUnit) -> String {
+        switch unit {
+        case .gram where value >= 1000: return "\(number(value / 1000, digits: 2)) кг"
+        case .milliliter where value >= 1000: return "\(number(value / 1000, digits: 2)) л"
+        default: return "\(number(value, digits: value < 10 ? 2 : 0)) \(unit.title(for: value))"
+        }
+    }
+
     /// «25 мин», «1 ч 30 мин».
     static func minutes(_ minutes: Int?) -> String {
         guard let minutes else { return "—" }

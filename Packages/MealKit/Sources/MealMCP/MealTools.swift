@@ -75,7 +75,7 @@ public struct MealTools: Sendable {
                 description:
                     "Отделы магазина по порядку: «Овощи и зелень», «Молочное и яйца»… Нужны, чтобы указать отдел продукта в upsert_product.",
                 inputSchema: schema([:]), annotations: readOnly),
-        ] + productTools + categoryTools + recipeTools
+        ] + productTools + categoryTools + recipeTools + pantryTools
 
     // MARK: - Calls
 
@@ -115,6 +115,18 @@ public struct MealTools: Sendable {
             case "update_recipe": output = try await updateRecipe(arguments)
             case "delete_recipe": output = try deleteRecipe(arguments)
             case "set_recipe_image": output = try await setRecipeImage(arguments)
+            case "get_pantry":
+                output = try getPantry(arguments)
+                changed = false
+            case "set_pantry": output = try setPantry(arguments)
+            case "adjust_pantry": output = try adjustPantry(arguments)
+            case "get_shopping_list":
+                output = try getShoppingList(arguments)
+                changed = false
+            case "add_to_shopping_list": output = try addToShoppingList(arguments)
+            case "check_shopping_items": output = try checkShoppingItems(arguments)
+            case "remove_shopping_items": output = try removeShoppingItems(arguments)
+            case "clear_checked": output = try clearChecked(arguments)
             default: throw ToolError("У сервера нет инструмента «\(name)».")
             }
             if changed {
@@ -144,6 +156,8 @@ public struct MealTools: Sendable {
             database["products"] = .int(try opened.products(ProductQuery(), limit: 1).total)
             database["recipes"] = .int(try opened.recipeCards(RecipeQuery(), limit: 1).total)
             database["categories"] = .int(try opened.categories().count)
+            database["pantry_items"] = .int(try opened.pantry(PantryQuery(), limit: 1).total)
+            database["shopping_items"] = .int(try opened.shopping(ShoppingQuery(isChecked: false), limit: 1).total)
         } else {
             database["exists"] = false
         }

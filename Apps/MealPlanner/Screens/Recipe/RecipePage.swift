@@ -21,6 +21,7 @@ struct RecipePage: View {
     @State private var isGone = false
     @State private var startedEditing = false
     @State private var confirmsTrash = false
+    @State private var pantry: [Product.ID: PantryItem] = [:]
 
     var body: some View {
         Group {
@@ -31,7 +32,10 @@ struct RecipePage: View {
                 RecipeView(
                     details: details,
                     servings: Binding(get: { servings ?? details.recipe.servings }, set: { servings = $0 }),
-                    categories: categories, mealTypes: mealTypes, images: database.images)
+                    categories: categories, mealTypes: mealTypes, images: database.images, pantry: pantry
+                ) { line in
+                    toShopping(line, of: details)
+                }
             } else if isGone {
                 ContentUnavailableView(
                     "Рецепта больше нет", systemImage: "trash", description: Text("Он в корзине или удалён."))
@@ -57,6 +61,7 @@ struct RecipePage: View {
                 problem = String(describing: error)
             }
         }
+        .task(id: productIDs) { await watchPantry() }
         .task(id: draft) {
             guard draft != nil, draft != savedDraft else { return }
             do { try await Task.sleep(for: .milliseconds(600)) } catch { return }
@@ -96,6 +101,42 @@ struct RecipePage: View {
                     Button("В корзину…", role: .destructive) { confirmsTrash = true }
                 }
             }
+        }
+    }
+
+    /// What there is at home of the recipe's products, kept current while the page is open.
+    private var productIDs: Set<Product.ID> {
+        Set(details?.ingredients.map(\.productID) ?? [])
+    }
+
+    private func watchPantry() async {
+        do {
+            for try await items in database.observePantryItems(for: productIDs) { pantry = items }
+        } catch {
+            problem = String(describing: error)
+        }
+    }
+
+    /// One line, or with nil everything missing, onto the shopping list for the servings on screen.
+    private func toShopping(_ line: RecipeIngredient?, of details: RecipeDetails) -> Int {
+        let servings = servings ?? details.recipe.servings
+        do {
+            guard let line else {
+                return try database.addShortages(ofRecipe: details.recipe.id, servings: servings).count
+            }
+            guard let product = details.products[line.productID] else { return 0 }
+            let scaled = line.scaled(to: servings, of: details.recipe.servings)
+            let reason = ShoppingReason(recipeID: details.recipe.id, title: details.recipe.title)
+            let measured = scaled.isMeasured && !product.isStaple
+            let addition =
+                scaled.shortage(of: product, at: pantry[product.id], reason: reason)
+                ?? ShoppingAddition(
+                    product: product.id, amount: measured ? scaled.amountToHave : nil,
+                    unit: measured ? scaled.effectiveUnit : nil, reason: reason)
+            return try database.addToShopping([addition]).count
+        } catch {
+            problem = String(describing: error)
+            return 0
         }
     }
 

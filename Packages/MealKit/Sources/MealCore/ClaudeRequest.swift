@@ -8,9 +8,11 @@ public enum ClaudeRequest {
         - КБЖУ продукта — на 100 г съедобной части. КБЖУ рецепта считается из ингредиентов: на 100 г и на порцию.
         - Количество ингредиента — amount и unit (g, ml, pcs, tbsp, clove…); без amount — «по вкусу». Порций по умолчанию — 2: \
         едят двое.
+        - Запасы — в основной единице продукта (g, ml, pcs); quantity null — «есть, без счёта», 0 — закончилось. \
+        Купленное — в запасы через check_shopping_items со stock или adjust_pantry.
         - Удалённый рецепт 30 дней лежит в корзине приложения.
         - Длинные списки читай частями: limit и cursor из next_cursor.
-        - Готовые сценарии — промпты import_recipe, fill_recipe, fill_nutrition и migrate_from_notion.
+        - Готовые сценарии — промпты import_recipe, fill_recipe, fill_nutrition, what_to_cook и migrate_from_notion.
         """
 
     /// How products and their nutrition are filled: shared by the prompts that create products.
@@ -70,6 +72,23 @@ public enum ClaudeRequest {
             """
     }
 
+    /// «Что приготовить сегодня»: from what there is at home, for `meal` if given.
+    public static func whatToCook(meal: String?, wishes: String?) -> String {
+        let when = meal.map { "на \($0.lowercased())" } ?? "сегодня"
+        let wished = wishes.map { " Пожелания: \($0)." } ?? ""
+        let meals = meal.map { " и meal_types [«\($0)»]" } ?? ""
+        return """
+            Подскажи, что приготовить \(when) из того, что есть дома, по Meal Planner.\(wished)
+
+            1. Найди рецепты, для которых всё есть: search_recipes с max_missing 0\(meals), sort availability. Если \
+            таких меньше трёх — добавь те, где не хватает одного-двух ингредиентов (max_missing 2).
+            2. Проверь в get_recipe, чего именно не хватает (at_home и need_more), и посмотри get_pantry: что \
+            заканчивается (status low) — то лучше пустить в дело.
+            3. Предложи три варианта: название, КБЖУ на порцию, время и чего не хватает. Коротко, без пересказа рецепта.
+            4. Когда я выберу, предложи добавить недостающее в покупки: add_to_shopping_list с recipe.
+            """
+    }
+
     /// The move from Notion. `database` defaults to the Food base on the Recipes page, whose layout the request
     /// describes; another base is read the same way, by what its pages hold.
     public static func migrateFromNotion(_ database: String) -> String {
@@ -101,8 +120,11 @@ public enum ClaudeRequest {
         названием без вертикальных черт и бренда («Кетчуп | -50% | Heinz» → «Кетчуп», бренд и вариант — в source_note) \
         и КБЖУ с source: label. Если продукт есть, но у него нет КБЖУ, заполни его этими значениями.
         6. Когда рецепты перенесены, заполни продукты из created_products: \(nutritionRules) Работай партиями.
-        7. Отчёт: сколько рецептов перенесено, что пропущено и почему, где не скачалось фото, сколько продуктов создано и \
-        заполнено.
+        7. Если рядом есть база запасов Pantry (Name, Status, Section, Store) — перенеси и её: In stock — set_pantry без \
+        quantity; Running low — set_pantry с low: true; To buy — add_to_shopping_list; Don't need — пропусти. Продукт \
+        ищи через search_products, а если его нет — создай через upsert_product с подходящим отделом.
+        8. Отчёт: сколько рецептов перенесено, что пропущено и почему, где не скачалось фото, сколько продуктов создано и \
+        заполнено, что попало в запасы и в покупки.
         """
     }
 }

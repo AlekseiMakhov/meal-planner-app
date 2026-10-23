@@ -90,3 +90,65 @@ struct ProductRecord: Codable, FetchableRecord, MutablePersistableRecord {
             updatedAt: updatedAt)
     }
 }
+
+struct PantryItemRecord: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "pantry_item"
+
+    var productId: Int64
+    var quantity: Double?
+    var isLow: Bool
+    var updatedAt: Date
+
+    init(_ item: PantryItem) {
+        productId = item.productID
+        quantity = item.quantity
+        isLow = item.isLow
+        updatedAt = item.updatedAt
+    }
+
+    var item: PantryItem {
+        PantryItem(productID: productId, quantity: quantity, isLow: isLow, updatedAt: updatedAt)
+    }
+}
+
+/// A shopping list row. The reasons are kept as JSON, which the filter by recipe reads with `json_each`.
+struct ShoppingItemRecord: Codable, FetchableRecord, MutablePersistableRecord {
+    static let databaseTableName = "shopping_item"
+
+    var id: Int64?
+    var productId: Int64?
+    var text: String?
+    var textKey: String?
+    var amount: Double?
+    var unit: String?
+    var reasons: [ShoppingReason]
+    var checkedAt: Date?
+    var stockedAt: Date?
+    var position: Int
+    var createdAt: Date
+
+    init(_ item: ShoppingItem, id: Int64?) {
+        self.id = id
+        productId = item.productID
+        text = item.text
+        textKey = item.text.map(SearchText.normalized)
+        amount = item.amount
+        unit = item.unit?.rawValue
+        reasons = item.reasons
+        checkedAt = item.checkedAt
+        stockedAt = item.stockedAt
+        position = item.position
+        createdAt = item.createdAt
+    }
+
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+
+    var item: ShoppingItem {
+        ShoppingItem(
+            id: id ?? 0, productID: productId, text: text, amount: amount,
+            unit: unit.flatMap(MeasureUnit.init(rawValue:)),
+            reasons: reasons, checkedAt: checkedAt, stockedAt: stockedAt, position: position, createdAt: createdAt)
+    }
+}

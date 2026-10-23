@@ -140,6 +140,22 @@ struct ProductsScreen: View {
         .contextMenu(forSelectionType: Product.ID.self) { ids in
             let chosen = list.rows.filter { ids.contains($0.id) }
             if !chosen.isEmpty {
+                Button("Есть дома") {
+                    do {
+                        try database.addToPantry(
+                            Dictionary(uniqueKeysWithValues: chosen.map { ($0.id, nil as Double?) }))
+                    } catch {
+                        problem = String(describing: error)
+                    }
+                }
+                Button("В покупки") {
+                    do {
+                        try database.addToShopping(chosen.map { ShoppingAddition(product: $0.id) })
+                    } catch {
+                        problem = String(describing: error)
+                    }
+                }
+                Divider()
                 Button("Заполнить КБЖУ с Claude") {
                     model.askClaude(ClaudeRequest.fillNutrition(chosen.map { "«\($0.name)»" }.joined(separator: ", ")))
                 }

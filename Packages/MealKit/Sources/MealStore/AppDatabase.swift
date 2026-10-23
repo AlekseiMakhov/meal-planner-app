@@ -102,6 +102,9 @@ public struct AppDatabase: Sendable {
         migrator.registerMigration("recipes") { db in
             try createRecipeTables(db)
         }
+        migrator.registerMigration("pantry") { db in
+            try createPantryTables(db)
+        }
         return migrator
     }
 
@@ -201,6 +204,41 @@ public struct AppDatabase: Sendable {
             table.tokenizer = .unicode61()
             table.column("searchText")
         }
+    }
+
+    private static func createPantryTables(_ db: Database) throws {
+        // What there is at home, in the product's base unit: see PantryItem.
+        try db.create(table: "pantry_item") { table in
+            table.primaryKey("productId", .integer).references("product", onDelete: .cascade)
+            table.column("quantity", .double)
+            table.column("isLow", .boolean).notNull().defaults(to: false)
+            table.column("updatedAt", .datetime).notNull()
+        }
+        try db.create(table: "shopping_item") { table in
+            table.autoIncrementedPrimaryKey("id")
+            table.column("productId", .integer).references("product", onDelete: .cascade)
+            table.column("text", .text)
+            // The text as names are compared: two «Батарейки» make one line.
+            table.column("textKey", .text)
+            table.column("amount", .double)
+            table.column("unit", .text)
+            table.column("reasons", .text).notNull().defaults(to: "[]")
+            table.column("checkedAt", .datetime)
+            table.column("stockedAt", .datetime)
+            table.column("position", .integer).notNull()
+            table.column("createdAt", .datetime).notNull()
+        }
+        try db.create(index: "shopping_item_on_product", on: "shopping_item", columns: ["productId"])
+        try db.alter(table: "recipe_stats") { table in
+            table.add(column: "missingCount", .integer).notNull().defaults(to: 0)
+        }
+        // With nothing at home yet, every line a recipe cannot do without is missing.
+        try db.execute(
+            sql: """
+                UPDATE recipe_stats SET missingCount = (SELECT COUNT(*) FROM recipe_ingredient
+                WHERE recipe_ingredient.recipeId = recipe_stats.recipeId AND NOT recipe_ingredient.isOptional)
+                """)
+        try db.create(index: "recipe_stats_on_missing", on: "recipe_stats", columns: ["missingCount"])
     }
 
     /// The migrations applied to this database, in the order they were registered.

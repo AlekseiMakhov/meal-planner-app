@@ -66,6 +66,7 @@ struct RecipeFilterBar: View {
                     }
                 }
                 Menu("Время") { timeChoices }
+                Menu("Наличие") { availabilityChoices }
                 Divider()
                 Toggle("Избранное", isOn: flag(\.isFavorite))
                 Toggle("С фото", isOn: flag(\.hasPhoto))
@@ -157,6 +158,13 @@ struct RecipeFilterBar: View {
                 timeChoices
             }
         }
+        if let maxMissing = query.maxMissing {
+            FilterChip(title: "Наличие", value: Self.availabilityTitle(maxMissing).lowercased()) {
+                query.maxMissing = nil
+            } options: {
+                availabilityChoices
+            }
+        }
         flagChip("Избранное", \.isFavorite, yes: "да", no: "нет")
         flagChip("Фото", \.hasPhoto, yes: "есть", no: "нет")
         flagChip("Видео", \.hasVideo, yes: "есть", no: "нет")
@@ -183,6 +191,20 @@ struct RecipeFilterBar: View {
         }
         .pickerStyle(.inline)
         .labelsHidden()
+    }
+
+    @ViewBuilder private var availabilityChoices: some View {
+        Picker("Наличие", selection: $query.maxMissing) {
+            ForEach([0, 1, 2, 3], id: \.self) { count in
+                Text(Self.availabilityTitle(count)).tag(Int?.some(count))
+            }
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+    }
+
+    static func availabilityTitle(_ maxMissing: Int) -> String {
+        maxMissing == 0 ? "Можно приготовить сейчас" : "Не хватает не больше \(maxMissing)"
     }
 
     @ViewBuilder private func flagChip(

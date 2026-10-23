@@ -9,6 +9,7 @@ struct MainWindow: View {
 
     @Environment(AppModel.self) private var model
     @State private var categories: [CategorySummary] = []
+    @State private var shoppingCount = 0
     @State private var naming: CategoryNaming?
     @State private var name = ""
     @State private var deleting: RecipeCategory?
@@ -24,8 +25,7 @@ struct MainWindow: View {
             ) {
                 Section {
                     ForEach(AppModel.Section.allCases) { section in
-                        Label(section.title, systemImage: section.symbol)
-                            .tag(AppModel.SidebarItem.section(section))
+                        sectionRow(section)
                     }
                 }
                 Section {
@@ -69,6 +69,14 @@ struct MainWindow: View {
                         model.sidebar = .section(.recipes)
                     }
                 }
+            } catch {
+                categoryProblem = String(describing: error)
+            }
+        }
+        .task {
+            guard let database = model.database else { return }
+            do {
+                for try await count in database.observeShoppingCount() { shoppingCount = count }
             } catch {
                 categoryProblem = String(describing: error)
             }
@@ -122,6 +130,14 @@ struct MainWindow: View {
             return category.category.name
         }
         return model.section.title
+    }
+
+    /// A section of the sidebar; «Покупки» counts what is still to buy.
+    private func sectionRow(_ section: AppModel.Section) -> some View {
+        let badge = section == .shopping ? shoppingCount : 0
+        return Label(section.title, systemImage: section.symbol)
+            .badge(badge)
+            .tag(AppModel.SidebarItem.section(section))
     }
 
     @ViewBuilder private func categoryMenu(_ category: RecipeCategory) -> some View {

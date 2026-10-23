@@ -17,6 +17,7 @@ struct ProductFilterBar: View {
                 Menu("КБЖУ") { nutritionChoices }
                 Button("Калорийность…") { editingCalories = true }
                 Menu("В рецептах") { recipeChoices }
+                Menu("Дома") { homeChoices }
                 Menu("Источник КБЖУ") { sourceToggles }
             } label: {
                 Label("Фильтр", systemImage: "line.3.horizontal.decrease")
@@ -74,6 +75,13 @@ struct ProductFilterBar: View {
                 recipeChoices
             }
         }
+        if let isAtHome = query.isAtHome {
+            FilterChip(title: "Дома", value: isAtHome ? "есть" : "нет") {
+                query.isAtHome = nil
+            } options: {
+                homeChoices
+            }
+        }
         if !query.sources.isEmpty {
             FilterChip(
                 title: "Источник",
@@ -115,6 +123,15 @@ struct ProductFilterBar: View {
         Picker("В рецептах", selection: $query.isUsedInRecipes) {
             Text("Есть в рецептах").tag(Bool?.some(true))
             Text("Ни в одном рецепте").tag(Bool?.some(false))
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+    }
+
+    @ViewBuilder private var homeChoices: some View {
+        Picker("Дома", selection: $query.isAtHome) {
+            Text("Есть дома").tag(Bool?.some(true))
+            Text("Дома нет").tag(Bool?.some(false))
         }
         .pickerStyle(.inline)
         .labelsHidden()

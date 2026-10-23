@@ -245,3 +245,101 @@ struct RecipeToolTests {
         #expect(try await fixture.call("get_recipe", ["id": created["id"]!])["in_trash"]?.boolValue == true)
     }
 }
+
+struct PantryToolTests {
+    @Test func thePantryIsSetInAnyUnitAndReadByStatus() async throws {
+        let fixture = try ToolFixture()
+        let set = try await fixture.call(
+            "set_pantry",
+            [
+                "items": [
+                    ["product": "молоко", "quantity": 1, "unit": "л"], ["product": "яйца", "quantity": 6],
+                    ["product": "соль"], ["product": "Сахар", "quantity": 0],
+                    ["product": "Укроп", "quantity": 1, "unit": "can"],
+                ]
+            ])
+        #expect(set["items"]?.arrayValue?.count == 5)
+        #expect(set["notes"]?.arrayValue?.count == 1)
+        let pantry = try await fixture.call("get_pantry", ["sort": "name"])
+        let rows = try #require(pantry["items"]?.arrayValue)
+        let milk = try #require(rows.first { $0["product"]?.stringValue == "Молоко 3,2%" })
+        #expect(milk["quantity"]?.intValue == 1000)
+        #expect(milk["unit"]?.stringValue == "ml")
+        let out = try await fixture.call("get_pantry", ["status": ["out"]])
+        #expect(out["items"]?.each("product") == ["Сахар"])
+        // A can of dill has no weight: it is there, uncounted.
+        let dill = try #require(rows.first { $0["product"]?.stringValue == "Укроп" })
+        #expect(dill["quantity"] == .null)
+        #expect(dill["status"]?.stringValue == "in_stock")
+
+        _ = try await fixture.call("set_pantry", ["remove": ["сахар"]])
+        #expect(try await fixture.call("get_pantry")["total"]?.intValue == 4)
+        #expect(
+            await fixture.failure("set_pantry", ["items": [["product": "сыр", "quantity": 100]]]).contains("подходят"))
+    }
+
+    @Test func adjustingAddsTakesAndRunsOut() async throws {
+        let fixture = try ToolFixture()
+        _ = try await fixture.call("set_pantry", ["items": [["product": "яйца", "quantity": 2], ["product": "соль"]]])
+        let adjusted = try await fixture.call(
+            "adjust_pantry",
+            [
+                "items": [
+                    "10 яиц", ["product": "мука пшеничная", "add": 1, "unit": "кг"], ["product": "яйца", "take": 3],
+                ],
+                "out": ["соль"],
+            ])
+        let rows = try #require(adjusted["items"]?.arrayValue)
+        #expect(rows.first { $0["product"]?.stringValue == "Яйцо куриное" }?["quantity"]?.intValue == 9)
+        #expect(rows.first { $0["product"]?.stringValue == "Мука пшеничная" }?["quantity"]?.intValue == 1000)
+        #expect(rows.first { $0["product"]?.stringValue == "Соль" }?["status"]?.stringValue == "out")
+    }
+
+    @Test func theShoppingListTakesLinesProductsTextAndARecipesShortages() async throws {
+        let fixture = try ToolFixture()
+        let recipe = try await fixture.call(
+            "create_recipe", ["title": "Омлет", "ingredients": ["3 яйца", "3 ст. л. молока", "соль по вкусу"]])
+        _ = try await fixture.call("set_pantry", ["items": [["product": "яйца", "quantity": 1], ["product": "соль"]]])
+        let checked = try await fixture.call("get_recipe", ["id": recipe["id"]!])
+        #expect(checked["missing_count"]?.intValue == 2)
+        #expect(checked["ingredients"]?[0]?["at_home"]?.stringValue == "low")
+        #expect(checked["ingredients"]?[0]?["need_more"]?.intValue == 2)
+        #expect(checked["ingredients"]?[2]?["at_home"]?.stringValue == "enough")
+        #expect(try await fixture.call("search_recipes", ["max_missing": 0])["total"]?.intValue == 0)
+        #expect(
+            try await fixture.call("search_recipes", ["max_missing": 2])["recipes"]?[0]?["missing_count"]?.intValue == 2
+        )
+
+        let added = try await fixture.call(
+            "add_to_shopping_list",
+            [
+                "items": ["хлеб бородинский", "батарейки 4 шт", ["text": "Свечи", "for": "Ужин при свечах"]],
+                "recipe": "омлет",
+            ])
+        #expect(added["added_or_grown"]?.arrayValue?.count == 5)
+        let again = try await fixture.call("add_to_shopping_list", ["recipe": "Омлет"])
+        #expect(again["note"]?.stringValue?.contains("ничего не нужно") == true)
+
+        let list = try await fixture.call("get_shopping_list")
+        let names = list["items"]?.each("name") ?? []
+        #expect(Set(names) == ["Хлеб бородинский", "Батарейки", "Свечи", "Яйцо куриное", "Молоко 3,2%"])
+        let forOmelette = try await fixture.call("get_shopping_list", ["recipe": "омлет"])
+        #expect(Set(forOmelette["items"]?.each("name") ?? []) == ["Яйцо куриное", "Молоко 3,2%"])
+
+        let eggs = try #require(list["items"]?.arrayValue?.first { $0["name"]?.stringValue == "Яйцо куриное" })
+        _ = try await fixture.call("check_shopping_items", ["ids": [eggs["id"]!], "stock": true])
+        let pantry = try await fixture.call("get_pantry", ["query": "яйца"])
+        #expect(pantry["items"]?[0]?["quantity"]?.intValue == 3)
+        #expect(try await fixture.call("get_recipe", ["id": recipe["id"]!])["missing_count"]?.intValue == 1)
+
+        let bread = try #require(list["items"]?.arrayValue?.first { $0["name"]?.stringValue == "Хлеб бородинский" })
+        _ = try await fixture.call("check_shopping_items", ["ids": [bread["id"]!]])
+        let cleared = try await fixture.call("clear_checked", ["stock": true])
+        #expect(cleared["removed"]?.intValue == 1)
+        #expect(try await fixture.call("get_shopping_list")["total"]?.intValue == 3)
+        let candles = try #require(
+            try await fixture.call("get_shopping_list", ["query": "свечи"])["items"]?[0]?["id"])
+        _ = try await fixture.call("remove_shopping_items", ["ids": [candles]])
+        #expect(try await fixture.call("get_shopping_list")["total"]?.intValue == 2)
+    }
+}

@@ -59,6 +59,12 @@ enum ProductListSQL {
             conditions.append(
                 "EXISTS (SELECT 1 FROM recipe_ingredient WHERE recipe_ingredient.productId = product.id) = \(isUsed)")
         }
+        if let isAtHome = query.isAtHome {
+            conditions.append(
+                SQL(
+                    sql: "EXISTS (SELECT 1 FROM pantry_item WHERE pantry_item.productId = product.id AND "
+                        + PantryListSQL.inStock + ") = ?", arguments: [isAtHome]))
+        }
         if !query.sources.isEmpty {
             conditions.append("product.nutritionSource IN \(query.sources.map(\.rawValue).sorted())")
         }

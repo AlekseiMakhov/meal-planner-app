@@ -2,9 +2,9 @@ import Foundation
 import GRDB
 import MealCore
 
-/// Reading whole recipes, and the derived values lists sort and filter by: nutrition per serving, total time
-/// and the search text. Those live in `recipe_stats` and are refreshed whenever a recipe or one of its
-/// products changes, inside the same transaction.
+/// Reading whole recipes, and the derived values lists sort and filter by: nutrition per serving, total time,
+/// the search text and how many ingredients are short at home. Those live in `recipe_stats` and are refreshed
+/// whenever a recipe, one of its products or the pantry of one changes, inside the same transaction.
 enum RecipeDerived {
     static func details(_ db: Database, id: Recipe.ID) throws -> RecipeDetails? {
         guard let record = try RecipeRecord.fetchOne(db, key: id) else { return nil }
@@ -36,6 +36,9 @@ enum RecipeDerived {
         for id in Set(recipeIDs) {
             guard let details = try details(db, id: id) else { continue }
             let nutrition = details.nutrition
+            let pantry = try PantryItemRecord.fetchAll(db, keys: Set(details.ingredients.map(\.productID)))
+            let availability = details.availability(
+                pantry: Dictionary(uniqueKeysWithValues: pantry.map { ($0.productId, $0.item) }))
             let products = details.ingredients.compactMap { details.products[$0.productID] }
             let words =
                 [details.recipe.title, details.recipe.notes] + details.steps.map(\.text)
@@ -45,15 +48,22 @@ enum RecipeDerived {
                 searchText: SearchText.normalized(words.joined(separator: " ")), kcalPer100: nutrition.per100g?.kcal,
                 kcalPerServing: nutrition.perServing?.kcal, proteinPerServing: nutrition.perServing?.protein,
                 fatPerServing: nutrition.perServing?.fat, carbsPerServing: nutrition.perServing?.carbs,
-                totalMinutes: details.recipe.totalMinutes, isNutritionComplete: nutrition.isComplete
+                totalMinutes: details.recipe.totalMinutes, isNutritionComplete: nutrition.isComplete,
+                missingCount: availability.missingCount
             ).upsert(db)
         }
     }
 
     /// The recipes a product is in, trashed ones included: they come back with the product as it is now.
     static func recipes(using productID: Product.ID, _ db: Database) throws -> [Recipe.ID] {
-        try Int64.fetchAll(
-            db, sql: "SELECT DISTINCT recipeId FROM recipe_ingredient WHERE productId = ?", arguments: [productID])
+        try recipes(using: [productID], db)
+    }
+
+    static func recipes(using productIDs: some Collection<Product.ID>, _ db: Database) throws -> [Recipe.ID] {
+        guard !productIDs.isEmpty else { return [] }
+        return try SQLRequest<Int64>(
+            literal: "SELECT DISTINCT recipeId FROM recipe_ingredient WHERE productId IN \(Array(productIDs))"
+        ).fetchAll(db)
     }
 }
 

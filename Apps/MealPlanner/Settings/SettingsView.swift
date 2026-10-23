@@ -26,9 +26,22 @@ struct SettingsView: View {
 
 private struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(ShoppingScreen.stocksWithoutAskingKey) private var stocksWithoutAsking = false
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Пополнять запасы без вопросов", isOn: $stocksWithoutAsking)
+            } header: {
+                Text("Покупки")
+            } footer: {
+                Text(
+                    stocksWithoutAsking
+                        ? "Отмеченное купленным сразу попадает в запасы в том количестве, что было в списке."
+                        : "Купленное попадает в запасы после «Убрать в запасы…»: там можно поправить количества."
+                )
+                .foregroundStyle(.secondary)
+            }
             LabeledContent("Папка с данными") {
                 if let directory = model.dataDirectory {
                     HStack {

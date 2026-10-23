@@ -97,18 +97,21 @@ extension MealTools {
                     "has_video": boolean("С видео или без."),
                     "nutrition_incomplete": boolean(
                         "true — КБЖУ посчитано не полностью: у продуктов нет КБЖУ или пересчёта в граммы."),
+                    "max_missing": integer(
+                        "Не хватает дома не больше стольких ингредиентов; 0 — можно приготовить сейчас."),
                     "sort": choice(
                         [
                             "title", "kcal_per_100g", "kcal_per_serving", "protein", "fat", "carbs", "total_time",
-                            "created",
-                            "updated", "relevance",
-                        ], "Порядок; по умолчанию title, с query — relevance."),
+                            "created", "updated", "availability", "relevance",
+                        ],
+                        "Порядок; по умолчанию title, с query — relevance; availability — сначала то, для чего всё есть."
+                    ),
                 ].merging(page) { first, _ in first }),
             annotations: readOnly),
         Tool(
             name: "get_recipe", title: "Рецепт",
             description:
-                "Рецепт целиком: ингредиенты с граммами, шаги, КБЖУ на 100 г и на порцию и чего не хватает для полного расчёта.",
+                "Рецепт целиком: ингредиенты с граммами и наличием дома (at_home: enough, low, missing, unknown; need_more — сколько докупить в pantry_unit), шаги, КБЖУ на 100 г и на порцию и чего не хватает для полного расчёта.",
             inputSchema: schema(
                 [
                     "id": integer("Id рецепта."),
@@ -178,10 +181,11 @@ extension MealTools {
         query.hasPhoto = try arguments.bool("has_photo")
         query.hasVideo = try arguments.bool("has_video")
         query.nutritionIncomplete = try arguments.bool("nutrition_incomplete")
+        query.maxMissing = try arguments.int("max_missing")
         let keys: [String: RecipeQuery.SortKey] = [
             "title": .title, "kcal_per_100g": .kcalPer100, "kcal_per_serving": .kcalPerServing, "protein": .protein,
             "fat": .fat, "carbs": .carbs, "total_time": .totalTime, "created": .createdAt, "updated": .updatedAt,
-            "relevance": .relevance,
+            "availability": .availability, "relevance": .relevance,
         ]
         let sort = try arguments.string("sort") ?? (query.text.isEmpty ? "title" : "relevance")
         guard let key = keys[sort] else { throw ToolError("Нет сортировки «\(sort)».") }
@@ -205,8 +209,9 @@ extension MealTools {
             throw ToolError("«servings» — от 1 до 100.")
         }
         return ToolOutput.recipe(
-            details, servings: servings, categories: try categoryNames(database), mealTypes: try mealTypeNames(database)
-        )
+            details, servings: servings, categories: try categoryNames(database),
+            mealTypes: try mealTypeNames(database),
+            pantry: try database.pantryItems(for: details.ingredients.map(\.productID)))
     }
 
     // MARK: - Changing

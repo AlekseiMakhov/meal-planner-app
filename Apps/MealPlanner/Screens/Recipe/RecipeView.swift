@@ -3,15 +3,20 @@ import MealStore
 import SwiftUI
 
 /// A recipe to read, laid out like the Notion page it replaces: cover, title, nutrition, ingredients for the
-/// chosen number of servings, steps, notes and links.
+/// chosen number of servings with what there is at home, steps, notes and links.
 struct RecipeView: View {
     let details: RecipeDetails
     @Binding var servings: Int
     let categories: [RecipeCategory]
     let mealTypes: [MealType]
     let images: ImageStore
+    /// What there is at home of the recipe's products.
+    let pantry: [Product.ID: PantryItem]
+    /// Puts a line, or with nil everything missing, on the shopping list; returns how many lines went there.
+    let toShopping: (RecipeIngredient?) -> Int
 
     @State private var showsVideo = false
+    @State private var added: String?
 
     private var recipe: Recipe {
         details.recipe
@@ -159,9 +164,27 @@ struct RecipeView: View {
     // MARK: - Ingredients
 
     private var ingredients: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Ингредиенты \(Formatting.servings(servings))")
-                .font(.title2.bold())
+        let availability = details.availability(servings: servings, pantry: pantry)
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Ингредиенты \(Formatting.servings(servings))")
+                    .font(.title2.bold())
+                Spacer()
+                if let added {
+                    Text(added)
+                        .foregroundStyle(Color(.textSecondary))
+                        .transition(.opacity)
+                }
+                if availability.missingCount > 0 {
+                    Button("Недостающее в покупки", systemImage: "cart.badge.plus") { add(nil) }
+                        .help(
+                            "Не хватает \(Formatting.count(availability.missingCount, "ингредиента", "ингредиентов", "ингредиентов"))"
+                        )
+                } else if !details.ingredients.isEmpty {
+                    Label("Всё есть", systemImage: "checkmark.circle")
+                        .foregroundStyle(Color(.statusInStock))
+                }
+            }
             if details.ingredients.isEmpty {
                 Text("Ингредиентов пока нет.")
                     .foregroundStyle(Color(.textSecondary))
@@ -173,12 +196,14 @@ struct RecipeView: View {
                                 Text(title)
                                     .font(.headline)
                                     .foregroundStyle(Color(.textSecondary))
-                                    .gridCellColumns(3)
+                                    .gridCellColumns(5)
                                     .padding(.top, 6)
                             }
                         }
                         ForEach(group.lines) { line in
-                            ingredientRow(line.scaled(to: servings, of: recipe.servings))
+                            ingredientRow(
+                                line.scaled(to: servings, of: recipe.servings), availability.lines[line.id],
+                                original: line)
                             Divider()
                                 .gridCellUnsizedAxes(.horizontal)
                                 .opacity(0.5)
@@ -191,7 +216,9 @@ struct RecipeView: View {
         .background(Color(.card), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private func ingredientRow(_ ingredient: RecipeIngredient) -> some View {
+    private func ingredientRow(
+        _ ingredient: RecipeIngredient, _ availability: Availability?, original: RecipeIngredient
+    ) -> some View {
         let product = details.products[ingredient.productID]
         let amount = Formatting.amount(ingredient)
         return GridRow {
@@ -211,8 +238,29 @@ struct RecipeView: View {
                 .gridColumnAlignment(.trailing)
             Text(amount.unit)
                 .foregroundStyle(Color(.textSecondary))
+            if let availability, let product {
+                AvailabilityBadge(availability: availability, unit: product.baseUnit.unit)
+                Button("В покупки", systemImage: "cart.badge.plus") { add(original) }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Добавить «\(product.name)» в покупки")
+                    .opacity(availability == .enough ? 0 : 1)
+                    .disabled(availability == .enough)
+            } else {
+                Color.clear.frame(width: 0, height: 0)
+                Color.clear.frame(width: 0, height: 0)
+            }
         }
         .textSelection(.enabled)
+    }
+
+    private func add(_ line: RecipeIngredient?) {
+        let count = toShopping(line)
+        withAnimation { added = count == 0 ? "Уже в покупках" : "Добавлено в покупки" }
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation { added = nil }
+        }
     }
 
     private struct IngredientGroup {
@@ -290,6 +338,55 @@ struct RecipeView: View {
                     LinkPreview(url: source)
                 }
             }
+        }
+    }
+}
+
+/// What there is at home for a line: «Есть», «Мало · ещё 20 г», «Нет», «?».
+struct AvailabilityBadge: View {
+    let availability: Availability
+    /// The unit the pantry counts the product in.
+    let unit: MeasureUnit
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text(title)
+                .foregroundStyle(availability == .unknown ? Color(.textSecondary) : Color(.textPrimary))
+        }
+        .font(.callout)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.16), in: Capsule())
+        .help(help)
+    }
+
+    private var title: String {
+        switch availability {
+        case .enough: "Есть"
+        case .low(let missing): "Мало · ещё \(Formatting.quantity(missing, unit))"
+        case .missing: "Нет"
+        case .unknown: "?"
+        }
+    }
+
+    private var color: Color {
+        switch availability {
+        case .enough: Color(.statusInStock)
+        case .low: Color(.statusLow)
+        case .missing: Color(.statusMissing)
+        case .unknown: Color(.textSecondary)
+        }
+    }
+
+    private var help: String {
+        switch availability {
+        case .enough: "Дома хватает"
+        case .low(let missing): "Дома есть, но нужно ещё \(Formatting.quantity(missing, unit))"
+        case .missing: "Дома нет"
+        case .unknown: "Не сравнить с запасами: у продукта не задан вес этой единицы"
         }
     }
 }

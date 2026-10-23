@@ -53,6 +53,8 @@ struct RangeChip: View {
 struct ProductPicker: View {
     let database: AppDatabase
     let prompt: String
+    /// What the search starts with: the name typed into a quick-add line.
+    var initialText = ""
     let onPick: (Product) -> Void
 
     @State private var text = ""
@@ -70,6 +72,7 @@ struct ProductPicker: View {
         }
         .padding(12)
         .frame(width: 300, height: 340)
+        .onAppear { text = initialText }
         .task(id: text) {
             do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
             let sort = text.isEmpty ? [SortTerm<ProductQuery.SortKey>(.name)] : [SortTerm(.relevance)]

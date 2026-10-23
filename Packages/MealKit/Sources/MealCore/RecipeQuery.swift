@@ -18,6 +18,8 @@ public struct ValueRange: Hashable, Sendable {
 public struct RecipeQuery: Hashable, Sendable {
     public enum SortKey: String, CaseIterable, Hashable, Sendable {
         case title, kcalPer100, kcalPerServing, protein, fat, carbs, totalTime, createdAt, updatedAt
+        /// How many ingredients are short at home: what can be cooked now comes first.
+        case availability
         /// How well the recipe matches the search; without a search, the title.
         case relevance
     }
@@ -42,6 +44,8 @@ public struct RecipeQuery: Hashable, Sendable {
     public var hasVideo: Bool?
     /// Recipes some of whose ingredients the nutrition could not count.
     public var nutritionIncomplete: Bool?
+    /// Recipes short of at most this many ingredients at home; 0 — what can be cooked now.
+    public var maxMissing: Int?
     public var sort: [SortTerm<SortKey>]
 
     public init(
@@ -49,7 +53,7 @@ public struct RecipeQuery: Hashable, Sendable {
         withProducts: Set<Product.ID> = [], withoutProducts: Set<Product.ID> = [], kcalPerServing: ValueRange = .init(),
         protein: ValueRange = .init(), fat: ValueRange = .init(), carbs: ValueRange = .init(), maxMinutes: Int? = nil,
         isFavorite: Bool? = nil, hasPhoto: Bool? = nil, hasVideo: Bool? = nil, nutritionIncomplete: Bool? = nil,
-        sort: [SortTerm<SortKey>] = [SortTerm(.title)]
+        maxMissing: Int? = nil, sort: [SortTerm<SortKey>] = [SortTerm(.title)]
     ) {
         self.text = text
         self.categoryIDs = categoryIDs
@@ -65,6 +69,7 @@ public struct RecipeQuery: Hashable, Sendable {
         self.hasPhoto = hasPhoto
         self.hasVideo = hasVideo
         self.nutritionIncomplete = nutritionIncomplete
+        self.maxMissing = maxMissing
         self.sort = sort
     }
 
@@ -73,7 +78,7 @@ public struct RecipeQuery: Hashable, Sendable {
         [
             !categoryIDs.isEmpty, !mealTypeIDs.isEmpty, !withProducts.isEmpty, !withoutProducts.isEmpty,
             !kcalPerServing.isEmpty, !protein.isEmpty, !fat.isEmpty, !carbs.isEmpty, maxMinutes != nil,
-            isFavorite != nil, hasPhoto != nil, hasVideo != nil, nutritionIncomplete != nil,
+            isFavorite != nil, hasPhoto != nil, hasVideo != nil, nutritionIncomplete != nil, maxMissing != nil,
         ].filter { $0 }.count
     }
 
@@ -96,12 +101,15 @@ public struct RecipeCard: Identifiable, Hashable, Sendable {
     /// Calories and macronutrients in one serving.
     public var perServing: Nutrition?
     public var isNutritionComplete: Bool
+    /// Ingredients short at home for the recipe's own servings, optional ones aside.
+    public var missingCount: Int
     public var categoryIDs: [RecipeCategory.ID]
 
     public init(
         id: Recipe.ID, title: String, photo: String? = nil, hasVideo: Bool = false, isFavorite: Bool = false,
         servings: Int = Recipe.defaultServings, totalMinutes: Int? = nil, kcalPer100: Double? = nil,
-        perServing: Nutrition? = nil, isNutritionComplete: Bool = true, categoryIDs: [RecipeCategory.ID] = []
+        perServing: Nutrition? = nil, isNutritionComplete: Bool = true, missingCount: Int = 0,
+        categoryIDs: [RecipeCategory.ID] = []
     ) {
         self.id = id
         self.title = title
@@ -113,6 +121,7 @@ public struct RecipeCard: Identifiable, Hashable, Sendable {
         self.kcalPer100 = kcalPer100
         self.perServing = perServing
         self.isNutritionComplete = isNutritionComplete
+        self.missingCount = missingCount
         self.categoryIDs = categoryIDs
     }
 }

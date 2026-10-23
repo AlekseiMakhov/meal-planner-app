@@ -59,14 +59,16 @@ public struct ProductQuery: Hashable, Sendable {
     public var kcal: ValueRange
     /// Products some recipe uses, or none does.
     public var isUsedInRecipes: Bool?
+    /// Products in stock at home, or not.
+    public var isAtHome: Bool?
     /// Empty: any source, and none.
     public var sources: Set<NutritionSource>
     public var sort: [SortTerm<SortKey>]
 
     public init(
         text: String = "", aisleIDs: Set<Int64> = [], isStaple: Bool? = nil, nutrition: NutritionState? = nil,
-        kcal: ValueRange = .init(), isUsedInRecipes: Bool? = nil, sources: Set<NutritionSource> = [],
-        sort: [SortTerm<SortKey>] = [SortTerm(.name)]
+        kcal: ValueRange = .init(), isUsedInRecipes: Bool? = nil, isAtHome: Bool? = nil,
+        sources: Set<NutritionSource> = [], sort: [SortTerm<SortKey>] = [SortTerm(.name)]
     ) {
         self.text = text
         self.aisleIDs = aisleIDs
@@ -74,14 +76,18 @@ public struct ProductQuery: Hashable, Sendable {
         self.nutrition = nutrition
         self.kcal = kcal
         self.isUsedInRecipes = isUsedInRecipes
+        self.isAtHome = isAtHome
         self.sources = sources
         self.sort = sort
     }
 
     /// How many filters are on; the search does not count.
     public var filterCount: Int {
-        [!aisleIDs.isEmpty, isStaple != nil, nutrition != nil, !kcal.isEmpty, isUsedInRecipes != nil, !sources.isEmpty]
-            .filter { $0 }.count
+        [
+            !aisleIDs.isEmpty, isStaple != nil, nutrition != nil, !kcal.isEmpty, isUsedInRecipes != nil,
+            isAtHome != nil,
+            !sources.isEmpty,
+        ].filter { $0 }.count
     }
 
     /// The same query without filters, keeping the search and the order.

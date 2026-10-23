@@ -24,7 +24,10 @@ struct MealMCPServerTests {
             #expect(result.isError != true)
 
             let (prompts, _) = try await client.listPrompts()
-            #expect(prompts.map(\.name) == ["import_recipe", "fill_recipe", "fill_nutrition", "migrate_from_notion"])
+            #expect(
+                prompts.map(\.name) == [
+                    "import_recipe", "fill_recipe", "fill_nutrition", "what_to_cook", "migrate_from_notion",
+                ])
             let prompt = try await client.getPrompt(
                 name: "import_recipe", arguments: ["url": "https://example.com/omelette", "category": "Завтраки"])
             guard case .text(let text) = try #require(prompt.messages.first).content else {
@@ -73,7 +76,7 @@ struct MealMCPServerTests {
         _ = try AppDatabase.open(in: folder)
         let status = try output(await tools.call("get_status"))
         #expect(status["database"]?["exists"]?.boolValue == true)
-        #expect(status["database"]?["migrations"] == .array(["products", "seed: products 1", "recipes"]))
+        #expect(status["database"]?["migrations"] == .array(["products", "seed: products 1", "recipes", "pantry"]))
         #expect((status["database"]?["products"]?.intValue ?? 0) > 300)
         #expect(status["database"]?["recipes"]?.intValue == 0)
     }

@@ -122,12 +122,28 @@ extension AppDatabase {
             var changed = product
             changed.createdAt = record.createdAt
             changed.updatedAt = .now
+            let old = record.product
             record = ProductRecord(changed, id: product.id)
             try record.update(db)
+            if old.baseUnit != changed.baseUnit {
+                try Self.convertPantry(of: product.id, from: old.baseUnit, to: changed, db)
+            }
             // Its recipes' nutrition and search text follow the product.
             try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: product.id, db))
             return record.product
         }
+    }
+
+    /// What there is at home follows the product's new base unit; an amount that does not convert becomes
+    /// uncounted rather than wrong.
+    private static func convertPantry(of productID: Product.ID, from old: BaseUnit, to product: Product, _ db: Database)
+        throws
+    {
+        guard var item = try PantryItemRecord.fetchOne(db, key: productID)?.item, let quantity = item.quantity,
+            item.isInStock
+        else { return }
+        item.quantity = product.units.convert(quantity, from: old.unit, to: product.baseUnit.unit)
+        try PantryItemRecord(item).update(db)
     }
 
     /// How many recipes use the product, the trashed ones included.
@@ -151,8 +167,7 @@ extension AppDatabase {
 
     /// Folds a duplicate into the product that stays: the duplicate's name and aliases become aliases, and
     /// what the one that stays lacks — nutrition, piece weight, density, units, aisle — comes from the
-    /// duplicate. Recipes that used the duplicate use the kept product; later stages move pantry and shopping
-    /// items over here too.
+    /// duplicate. Recipes, the pantry and the shopping list that had the duplicate have the kept product.
     @discardableResult
     public func mergeProduct(_ duplicateID: Int64, into keptID: Int64) throws -> Product {
         guard duplicateID != keptID else { throw StoreError("Продукт нельзя объединить с самим собой.") }
@@ -178,11 +193,36 @@ extension AppDatabase {
 
             try db.execute(
                 sql: "UPDATE recipe_ingredient SET productId = ? WHERE productId = ?", arguments: [keptID, duplicateID])
+            try db.execute(
+                sql: "UPDATE shopping_item SET productId = ? WHERE productId = ?", arguments: [keptID, duplicateID])
+            try Self.mergePantry(of: duplicate, into: kept, db)
             try ProductRecord.deleteOne(db, key: duplicateID)
             let record = ProductRecord(kept, id: keptID)
             try record.update(db)
             try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: keptID, db))
             return record.product
         }
+    }
+
+    /// The duplicate's pantry joins the kept product's: counted amounts add up in the kept product's unit, one
+    /// that does not convert makes the stock uncounted.
+    private static func mergePantry(of duplicate: Product, into kept: Product, _ db: Database) throws {
+        guard let moved = try PantryItemRecord.fetchOne(db, key: duplicate.id)?.item else { return }
+        let converted = moved.quantity.flatMap {
+            kept.units.convert($0, from: duplicate.baseUnit.unit, to: kept.baseUnit.unit)
+        }
+        var item: PantryItem
+        if let existing = try PantryItemRecord.fetchOne(db, key: kept.id)?.item {
+            item = existing
+            if let quantity = existing.quantity, moved.isInStock {
+                item.quantity = converted.map { quantity + $0 }
+            }
+            item.isLow = existing.isLow && moved.isLow
+        } else {
+            item = PantryItem(productID: kept.id, quantity: moved.isInStock ? converted : 0, isLow: moved.isLow)
+        }
+        item.updatedAt = .now
+        try PantryItemRecord(item).upsert(db)
+        _ = try PantryItemRecord.deleteOne(db, key: duplicate.id)
     }
 }
