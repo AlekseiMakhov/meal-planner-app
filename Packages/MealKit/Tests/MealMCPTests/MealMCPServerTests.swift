@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import MealCore
 import MealStore
 import Testing
 
@@ -93,6 +94,29 @@ struct MealMCPServerTests {
 
     @Test func aToolOutsideAnAppHasNoEnclosingApp() {
         #expect(MealDataLocation.enclosingApp(of: URL(filePath: "/usr/local/bin/meal-planner-mcp")) == nil)
+    }
+
+    /// The server inside an app from an installer image starts a new data folder from the app's library too.
+    @Test func theAppsLibraryComesWithItsData() throws {
+        let app = FileManager.default.temporaryDirectory.appending(
+            path: "image \(UUID().uuidString)/MealPlanner.app", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: app.deletingLastPathComponent()) }
+        let contents = app.appending(path: "Contents", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(
+            at: contents.appending(path: "Helpers", directoryHint: .isDirectory), withIntermediateDirectories: true)
+        let info = ["CFBundleIdentifier": AppIdentity.debugBundleID, "CFBundlePackageType": "APPL"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+            .write(to: contents.appending(path: "Info.plist"))
+        let helper = contents.appending(path: "Helpers/meal-planner-mcp")
+
+        let plain = try #require(MealDataLocation.enclosingApp(of: helper))
+        #expect(plain.directory.lastPathComponent == AppIdentity.dataFolderName(debug: true))
+        #expect(plain.library == nil)
+
+        let library = contents.appending(
+            path: "Resources/\(AppIdentity.libraryFolderName)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+        #expect(try #require(MealDataLocation.enclosingApp(of: helper)).library == library)
     }
 
     private func withConnectedClient(

@@ -15,7 +15,7 @@ public struct MealTools: Sendable {
     }
 
     func database() throws -> AppDatabase {
-        try AppDatabase.open(in: location.directory)
+        try AppDatabase.open(in: location.directory, library: location.library)
     }
 
     // MARK: - Definitions

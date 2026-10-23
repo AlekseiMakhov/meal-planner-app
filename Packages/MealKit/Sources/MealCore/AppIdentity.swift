@@ -17,4 +17,8 @@ public enum AppIdentity {
     public static func dataFolderName(debug: Bool) -> String {
         debug ? "inco.mealplanner.debug" : "inco.mealplanner"
     }
+
+    /// The recipe library an installer image carries, in the app's `Contents/Resources`: a new installation
+    /// starts from it.
+    public static let libraryFolderName = "StarterLibrary"
 }

@@ -16,6 +16,7 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 | `make test-package` | Только тесты `MealKit`: быстро, без Xcode-проекта |
 | `make run` | Собрать и запустить Debug-версию |
 | `make install` | Release-сборка в `/Applications` — нужна для постоянного пути MCP-сервера |
+| `make dmg` | Образ для установки на другой Mac: Release-копия со стартовой библиотекой из данных установленного приложения (`DATA=<папка>` — из другой), подписанная сертификатом сборки или `SIGN="…"`; кладёт `build/dmg/Meal Planner & Recipes <версия>.dmg` |
 | `make mcp-inspect` | MCP Inspector для встроенного `meal-planner-mcp` |
 | `make format` / `make lint` | `swift-format` из тулчейна, настройки — в `.swift-format` |
 | `make perf` | Бюджет списков в оптимизированной сборке на 20 000 продуктов и 5 000 рецептов: первый блок быстрее 50 мс, поиск и сортировка быстрее 100 мс |
@@ -45,7 +46,8 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
   - `MealStore` → `MealCore`, GRDB: схема, миграции, начальная база (`Seed/`), запросы списков в SQL, кеш рецептов (`RecipeDerived`), фото (`ImageStore`), `PagedList`, уведомления о записи из другого процесса (`ExternalChanges`), запасы и покупки (`Pantry+Store`, `Shopping+Store`, списки — `PantryListSQL`, `ShoppingListSQL`), меню (`Planner+Store`).
   - `MealMCP` → `MealCore`, `MealStore`, MCP SDK: инструменты (`MealTools` и расширения `ProductTools`, `CategoryTools`, `RecipeTools`, `PantryTools`, `PlannerTools`), разбор аргументов (`Arguments`), вид ответов (`ToolOutput`), промпты (`MealPrompts`).
   - `MealReminders` → `MealCore`, `MealStore`, EventKit: синхронизация списка покупок с «Напоминаниями» (`ShoppingSync`), настройки и вид пунктов (`ReminderSettings`, `ReminderText`), хранилище — протокол `ReminderStore`, на Mac `EventKitReminderStore`, в тестах подделка.
-- `Tools/seed` — каталог начальной базы и её сборка.
+- `Packages/MealKit/Sources/MealLibraryTool` — `meal-library export <данные> <библиотека>`: стартовая библиотека для образа.
+- `Tools/seed` — каталог начальной базы и её сборка; `Tools/icon` — иконка приложения; `Tools/dmg` — сборка образа.
 
 ## Подпись и идентификаторы
 
@@ -166,6 +168,12 @@ Meal Planner & Recipes — macOS-приложение: рецепты с КБЖ�
 - Схема меняется только новой миграцией в `AppDatabase.migrator`; уже применённые миграции не редактируем. Сейчас: `products`, `seed: products 1`, `recipes`, `pantry`, `planner`, `reminders`, `pantry minimum`.
 - Резервные копии — `Backups`: раз в день при запуске `VACUUM INTO` в `Backups/meals-ГГГГ-ММ-ДД.sqlite` рядом с базой (или в iCloud Drive, если так в Настройках), хранятся 14 последних. Фото не копируются.
 - `AppDatabase.inMemory()` — пустая база для тестов (фото — во временной папке), `inMemory(seeded: true)` — с начальной базой.
+
+## Образ и стартовая библиотека
+
+- Новая установка начинается не с пустой базы, а со стартовой библиотеки, которую несёт приложение из образа: `Contents/Resources/StarterLibrary` (`AppIdentity.libraryFolderName`) — `meals.sqlite` и `Images`. `AppDatabase.open(in:library:)` кладёт её в папку данных, только если базы там ещё нет; существующую не трогает никогда. Начать может и приложение, и MCP-сервер внутри него (`MealDataLocation.library`), кто первый; база встаёт на место целиком, переносом готового файла.
+- Библиотеку пишет `exportLibrary(to:)`: копия базы без запасов, покупок, меню, связей с «Напоминаниями», корзины и пустых черновиков (рецептов без ингредиентов и шагов), с `recipe_stats`, пересчитанным для пустых запасов, и фото её рецептов. Копия открывается без миграций — схема та же, начальная база второй раз не грузится.
+- `make dmg`: Release-сборка, `meal-library export` из `DATA` прямо в приложение, повторная подпись — с entitlements из `Config/MealPlanner.entitlements` (разработческая подпись добавляет `get-task-allow`, нотаризация его не пускает), образ UDZO с ярлыком «Программы». Сертификат по умолчанию — сборки (Apple Development): на своих Mac открывается сразу, а `spctl` его отклоняет, и на чужом Mac скачанное приложение открывают через «Всё равно открыть». В связке есть «Developer ID Application: Aleksei Makhov (6S43T3N4UL)»: `SIGN` с ним подписывает и помощник, с отметкой времени, но macOS один раз спрашивает доступ к ключу — без человека у экрана `codesign` ждёт. Нотаризацию отправляет пользователь своим профилем `notarytool`.
 
 ## MCP
 

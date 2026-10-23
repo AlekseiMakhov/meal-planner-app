@@ -27,9 +27,13 @@ public struct AppDatabase: Sendable {
     }
 
     /// Opens the database in the folder for reading and writing; creates the folder and the file, migrates
-    /// the schema and loads the starting product base when needed.
-    public static func open(in directory: URL) throws -> AppDatabase {
+    /// the schema and loads the starting product base when needed. A folder without a database yet starts from
+    /// the `library`, when there is one: the recipe library an installer image carries.
+    public static func open(in directory: URL, library: URL? = nil) throws -> AppDatabase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if let library, !FileManager.default.fileExists(atPath: file(in: directory).path(percentEncoded: false)) {
+            try installLibrary(from: library, into: directory)
+        }
         var configuration = Configuration()
         configuration.busyMode = .timeout(5)
         let pool = try DatabasePool(path: file(in: directory).path(percentEncoded: false), configuration: configuration)

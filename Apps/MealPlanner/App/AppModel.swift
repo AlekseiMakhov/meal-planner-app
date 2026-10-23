@@ -140,7 +140,9 @@ final class AppModel {
             return
         }
         do {
-            let database = try AppDatabase.open(in: dataDirectory)
+            // Installed from the image, the app brings a recipe library: a new Mac starts from it.
+            let library = Bundle.main.url(forResource: AppIdentity.libraryFolderName, withExtension: nil)
+            let database = try AppDatabase.open(in: dataDirectory, library: library)
             self.database = database
             if !Self.isRunningTests {
                 maintainDaily(database, dataDirectory)

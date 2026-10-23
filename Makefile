@@ -7,6 +7,10 @@ DERIVED  := build/DerivedData
 PRODUCTS := $(DERIVED)/Build/Products
 APP      := MealPlanner.app
 ICONS    := Apps/MealPlanner/Resources/Assets.xcassets
+# The data folder `make dmg` takes the recipe library from: the installed app's.
+DATA     ?= $(HOME)/Library/Application Support/inco.mealplanner
+# The identity the image's app is signed with; empty — the build's own.
+SIGN     ?=
 MCP_TOOL := Contents/Helpers/meal-planner-mcp
 
 # Automatic signing (team 6S43T3N4UL) may need to register the App ID or this Mac.
@@ -17,7 +21,7 @@ XCODEBUILD := xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
 SWIFT_SOURCES := Apps $(PACKAGE)/Package.swift $(PACKAGE)/Sources $(PACKAGE)/Tests
 
 .DEFAULT_GOAL := build
-.PHONY: project build test test-package test-app run install mcp-inspect format lint perf seed icon clean
+.PHONY: project build test test-package test-app run install dmg mcp-inspect format lint perf seed icon clean
 
 project:
 	xcodegen generate --use-cache --quiet
@@ -46,6 +50,10 @@ install: project
 icon:
 	swift Tools/icon/draw_icon.swift "$(ICONS)/AppIcon.appiconset" release
 	swift Tools/icon/draw_icon.swift "$(ICONS)/AppIconDebug.appiconset" debug
+
+dmg: project
+	$(XCODEBUILD) -configuration Release build
+	Tools/dmg/make_dmg.sh "$(PRODUCTS)/Release/$(APP)" "$(DATA)" "$(SIGN)"
 
 mcp-inspect: build
 	npx -y @modelcontextprotocol/inspector "$(PRODUCTS)/Debug/$(APP)/$(MCP_TOOL)"
