@@ -7,6 +7,7 @@ import SwiftUI
 struct PantryScreen: View {
     let database: AppDatabase
 
+    @Environment(AppModel.self) private var model
     @State private var list: PagedList<PantryQuery, PantryEntry>
     @State private var aisles: [Aisle] = []
     @State private var searchText = ""
@@ -65,6 +66,11 @@ struct PantryScreen: View {
             }
         }
         .onDisappear { list.stop() }
+        .onChange(of: model.request, initial: true) {
+            guard let request = model.request, request.section == .pantry else { return }
+            searchText = request.search ?? ""
+            model.request = nil
+        }
         .toolbar {
             ToolbarItemGroup {
                 sortMenu

@@ -73,6 +73,11 @@ struct ShoppingScreen: View {
             }
         }
         .onDisappear { list.stop() }
+        .onChange(of: model.request, initial: true) {
+            guard let request = model.request, request.section == .shopping else { return }
+            searchText = request.search ?? ""
+            model.request = nil
+        }
         .toolbar {
             ToolbarItemGroup {
                 if let reminders = model.reminders, reminders.settings.isEnabled, reminders.settings.listID != nil {

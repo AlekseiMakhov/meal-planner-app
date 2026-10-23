@@ -71,6 +71,15 @@ struct ProductsScreen: View {
         .onChange(of: selection) {
             if selection.count == 1 { showsInspector = true }
         }
+        .onChange(of: model.request, initial: true) {
+            guard let request = model.request, request.section == .products else { return }
+            searchText = request.search ?? ""
+            if let product = request.product {
+                selection = [product]
+                showsInspector = true
+            }
+            model.request = nil
+        }
         .sheet(item: $merging) { duplicate in
             MergeProductSheet(database: database, duplicate: duplicate) { kept in
                 selection = [kept.id]

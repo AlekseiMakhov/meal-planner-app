@@ -87,6 +87,11 @@ struct RecipesScreen: View {
             query.categoryIDs = categoryID.map { [$0] } ?? []
             path = []
         }
+        .onChange(of: model.request, initial: true) {
+            guard let request = model.request, request.section == .recipes, let id = request.recipe else { return }
+            path = [RecipeRoute(id: id)]
+            model.request = nil
+        }
         .onDisappear {
             gallery.stop()
             table.stop()

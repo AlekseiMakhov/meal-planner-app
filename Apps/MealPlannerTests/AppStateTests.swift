@@ -34,6 +34,19 @@ struct AppStateTests {
         #expect(try database.aisles().count == 18)
     }
 
+    @Test func quickSearchOpensWhereTheHitLives() {
+        let model = AppModel()
+        model.open(QuickSearch.Hit(kind: .product, id: 5, title: "Фета", detail: ""))
+        #expect(model.section == .products)
+        #expect(model.request?.product == 5)
+        #expect(model.request?.search == "Фета")
+        model.open(QuickSearch.Hit(kind: .recipe, id: 7, title: "Омлет", detail: ""))
+        #expect(model.section == .recipes)
+        #expect(model.request?.recipe == 7)
+        model.open(QuickSearch.Hit(kind: .category, id: 3, title: "Супы", detail: ""))
+        #expect(model.category == 3)
+    }
+
     @Test func colorTokensComeFromTheAssetCatalog() {
         // A token missing from Assets.xcassets would resolve to nothing; spot-check the ones every screen uses.
         for name in ["Canvas", "TextPrimary", "TextSecondary", "AccentColor", "TagGray", "TagYellow"] {

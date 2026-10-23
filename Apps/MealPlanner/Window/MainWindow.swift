@@ -109,6 +109,11 @@ struct MainWindow: View {
                 "Без инструментов Meal Planner Claude не прочитает и не изменит рецепты. В конфиг Claude Desktop добавится сервер «\(ClaudeConnection.current.serverName)», прежний конфиг сохранится рядом."
             )
         }
+        .sheet(isPresented: $model.showsQuickSearch) {
+            if let database = model.database {
+                QuickSearch(database: database) { hit in model.open(hit) }
+            }
+        }
         .alert("Claude", isPresented: isPresent($claudeNotice), presenting: claudeNotice) { _ in
             Button("Понятно") {}
         } message: { notice in

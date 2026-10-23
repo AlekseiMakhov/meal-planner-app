@@ -56,6 +56,10 @@ final class AppModel {
     var problem: Problem?
     /// A request for Claude waiting until Meal Planner is connected to Claude Desktop.
     var claudeRequestAwaitingConnection: String?
+    /// ⌘K is open.
+    var showsQuickSearch = false
+    /// What a screen is asked to show; the screen clears it once it has.
+    var request: NavigationRequest?
 
     /// The section on screen; a category is the recipes section showing that category.
     var section: Section {
@@ -137,6 +141,26 @@ final class AppModel {
             reminders = RemindersModel(database: database)
         } catch {
             problem = Problem(title: "Не открылась база данных", message: "\(error)")
+        }
+    }
+
+    /// Goes where a quick-search hit lives.
+    func open(_ hit: QuickSearch.Hit) {
+        switch hit.kind {
+        case .recipe:
+            sidebar = .section(.recipes)
+            request = NavigationRequest(section: .recipes, recipe: hit.id)
+        case .product:
+            sidebar = .section(.products)
+            request = NavigationRequest(section: .products, product: hit.id, search: hit.title)
+        case .pantry:
+            sidebar = .section(.pantry)
+            request = NavigationRequest(section: .pantry, search: hit.title)
+        case .shopping:
+            sidebar = .section(.shopping)
+            request = NavigationRequest(section: .shopping, search: hit.title)
+        case .category:
+            sidebar = .category(hit.id)
         }
     }
 

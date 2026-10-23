@@ -12,6 +12,13 @@ struct MealPlannerApp: App {
                 .environment(model)
         }
         .defaultSize(width: 1200, height: 780)
+        .commands {
+            CommandGroup(after: .textEditing) {
+                Button("Быстрый поиск…") { model.showsQuickSearch = true }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .disabled(model.database == nil)
+            }
+        }
 
         Settings {
             SettingsView()
