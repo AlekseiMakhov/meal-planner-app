@@ -71,7 +71,7 @@ struct ProductPerformanceTests {
         let filtered = try milliseconds {
             _ = try database.products(
                 ProductQuery(
-                    text: "мол", aisleIDs: [dairy.id], nutrition: .complete, kcalMin: 40, kcalMax: 400,
+                    text: "мол", aisleIDs: [dairy.id], nutrition: .complete, kcal: ValueRange(min: 40, max: 400),
                     sort: [SortTerm(.kcal)]),
                 limit: 100)
         }

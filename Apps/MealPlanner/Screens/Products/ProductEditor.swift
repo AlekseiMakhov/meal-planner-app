@@ -15,6 +15,7 @@ struct ProductEditor: View {
     @State private var saved: Product?
     @State private var aliases = ""
     @State private var problem: String?
+    @State private var recipeCount = 0
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -30,6 +31,7 @@ struct ProductEditor: View {
             draft = product
             saved = product
             aliases = product.aliases.joined(separator: ", ")
+            recipeCount = (try? database.recipeCount(of: productID)) ?? 0
             nameFocused = product.name.hasPrefix("Новый продукт")
         }
         .task(id: draft) {
@@ -118,6 +120,10 @@ struct ProductEditor: View {
             }
 
             Section {
+                LabeledContent(
+                    "В рецептах",
+                    value: recipeCount == 0
+                        ? "нет" : Formatting.count(recipeCount, "рецепт", "рецепта", "рецептов"))
                 Button("Объединить с другим продуктом…") { onMerge(product.wrappedValue) }
                 Button("Удалить продукт…", role: .destructive) { onDelete(product.wrappedValue) }
                     .foregroundStyle(.red)

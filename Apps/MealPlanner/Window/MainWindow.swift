@@ -1,31 +1,93 @@
+import MealCore
+import MealStore
 import SwiftUI
 
-/// The main window: sections in the sidebar, each with its own screen.
+/// The main window: sections and recipe categories in the sidebar, each with its own screen.
 struct MainWindow: View {
     static let id = "main"
 
     @Environment(AppModel.self) private var model
+    @State private var categories: [CategorySummary] = []
+    @State private var naming: CategoryNaming?
+    @State private var name = ""
+    @State private var deleting: RecipeCategory?
+    @State private var categoryProblem: String?
 
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
             List(
-                selection: Binding<AppModel.Section?>(
-                    get: { model.section }, set: { section in section.map { model.section = $0 } })
+                selection: Binding<AppModel.SidebarItem?>(
+                    get: { model.sidebar }, set: { item in item.map { model.sidebar = $0 } })
             ) {
-                ForEach(AppModel.Section.allCases) { section in
-                    Label(section.title, systemImage: section.symbol)
-                        .tag(section)
+                Section {
+                    ForEach(AppModel.Section.allCases) { section in
+                        Label(section.title, systemImage: section.symbol)
+                            .tag(AppModel.SidebarItem.section(section))
+                    }
+                }
+                Section {
+                    ForEach(categories) { summary in
+                        Label {
+                            Text(summary.category.name)
+                        } icon: {
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(summary.category.color.color)
+                                .imageScale(.small)
+                        }
+                        .badge(summary.count)
+                        .tag(AppModel.SidebarItem.category(summary.id))
+                        .contextMenu { categoryMenu(summary.category) }
+                    }
+                    .onMove(perform: moveCategories)
+                } header: {
+                    HStack {
+                        Text("Категории")
+                        Spacer()
+                        Button("Новая категория", systemImage: "plus") { name(.new) }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.plain)
+                    }
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
         } detail: {
-            SectionScreen(section: model.section, database: model.database)
+            SectionScreen(section: model.section, category: model.category, database: model.database)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.canvas))
         }
-        .navigationTitle(model.section.title)
+        .navigationTitle(title)
         .containerBackground(Color(.canvas), for: .window)
+        .task {
+            guard let database = model.database else { return }
+            do {
+                for try await categories in database.observeCategories() {
+                    self.categories = categories
+                    if let selected = model.category, !categories.contains(where: { $0.id == selected }) {
+                        model.sidebar = .section(.recipes)
+                    }
+                }
+            } catch {
+                categoryProblem = String(describing: error)
+            }
+        }
+        .alert(naming?.title ?? "", isPresented: isPresent($naming), presenting: naming) { naming in
+            TextField("Название", text: $name)
+            Button("Сохранить") { save(naming) }
+            Button("Отмена", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Удалить категорию «\(deleting?.name ?? "")»?", isPresented: isPresent($deleting), presenting: deleting
+        ) { category in
+            Button("Удалить", role: .destructive) { delete(category) }
+        } message: { _ in
+            Text("Рецепты останутся — в других категориях или без категории.")
+        }
+        .alert("Не получилось", isPresented: isPresent($categoryProblem), presenting: categoryProblem) { _ in
+            Button("Понятно") {}
+        } message: { problem in
+            Text(problem)
+        }
         .alert(
             model.problem?.title ?? "",
             isPresented: Binding(get: { model.problem != nil }, set: { if !$0 { model.problem = nil } }),
@@ -35,5 +97,109 @@ struct MainWindow: View {
         } message: { problem in
             Text(problem.message)
         }
+    }
+
+    private var title: String {
+        if let id = model.category, let category = categories.first(where: { $0.id == id }) {
+            return category.category.name
+        }
+        return model.section.title
+    }
+
+    @ViewBuilder private func categoryMenu(_ category: RecipeCategory) -> some View {
+        Button("Переименовать…") { name(.rename(category)) }
+        Menu("Цвет") {
+            ForEach(TagColor.allCases, id: \.self) { color in
+                Toggle(
+                    color.title, isOn: Binding(get: { category.color == color }, set: { _ in recolor(category, color) })
+                )
+            }
+        }
+        Divider()
+        Button("Удалить…", role: .destructive) { deleting = category }
+    }
+
+    // MARK: - Changes
+
+    private enum CategoryNaming: Identifiable {
+        case new
+        case rename(RecipeCategory)
+
+        var id: String {
+            switch self {
+            case .new: "new"
+            case .rename(let category): "rename \(category.id)"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .new: "Новая категория"
+            case .rename: "Переименовать категорию"
+            }
+        }
+    }
+
+    private func name(_ naming: CategoryNaming) {
+        if case .rename(let category) = naming {
+            name = category.name
+        } else {
+            name = ""
+        }
+        self.naming = naming
+    }
+
+    private func save(_ naming: CategoryNaming) {
+        guard let database = model.database else { return }
+        do {
+            switch naming {
+            case .new:
+                let category = try database.newCategory(named: name)
+                model.sidebar = .category(category.id)
+            case .rename(var category):
+                category.name = name
+                try database.save(category)
+            }
+        } catch {
+            categoryProblem = String(describing: error)
+        }
+    }
+
+    private func recolor(_ category: RecipeCategory, _ color: TagColor) {
+        var category = category
+        category.color = color
+        do {
+            try model.database?.save(category)
+        } catch {
+            categoryProblem = String(describing: error)
+        }
+    }
+
+    private func delete(_ category: RecipeCategory) {
+        do {
+            try model.database?.deleteCategory(id: category.id)
+        } catch {
+            categoryProblem = String(describing: error)
+        }
+    }
+
+    private func moveCategories(from source: IndexSet, to destination: Int) {
+        var ids = categories.map(\.id)
+        ids.move(fromOffsets: source, toOffset: destination)
+        do {
+            try model.database?.reorderCategories(ids)
+        } catch {
+            categoryProblem = String(describing: error)
+        }
+    }
+}
+
+/// True while the optional holds a value; setting false clears it. For alerts and sheets that present a value.
+@MainActor
+func isPresent<Value>(_ value: Binding<Value?>) -> Binding<Bool> {
+    Binding {
+        value.wrappedValue != nil
+    } set: {
+        if !$0 { value.wrappedValue = nil }
     }
 }

@@ -38,6 +38,8 @@ public struct ListPage<Row: Hashable & Sendable>: Hashable, Sendable {
 public struct ProductQuery: Hashable, Sendable {
     public enum SortKey: String, CaseIterable, Hashable, Sendable {
         case name, aisle, kcal, protein, fat, carbs, createdAt
+        /// How many recipes use the product.
+        case recipeCount
         /// How well the product matches the search; without a search, the name.
         case relevance
     }
@@ -54,30 +56,31 @@ public struct ProductQuery: Hashable, Sendable {
     public var aisleIDs: Set<Int64>
     public var isStaple: Bool?
     public var nutrition: NutritionState?
-    public var kcalMin: Double?
-    public var kcalMax: Double?
+    public var kcal: ValueRange
+    /// Products some recipe uses, or none does.
+    public var isUsedInRecipes: Bool?
     /// Empty: any source, and none.
     public var sources: Set<NutritionSource>
     public var sort: [SortTerm<SortKey>]
 
     public init(
         text: String = "", aisleIDs: Set<Int64> = [], isStaple: Bool? = nil, nutrition: NutritionState? = nil,
-        kcalMin: Double? = nil, kcalMax: Double? = nil, sources: Set<NutritionSource> = [],
+        kcal: ValueRange = .init(), isUsedInRecipes: Bool? = nil, sources: Set<NutritionSource> = [],
         sort: [SortTerm<SortKey>] = [SortTerm(.name)]
     ) {
         self.text = text
         self.aisleIDs = aisleIDs
         self.isStaple = isStaple
         self.nutrition = nutrition
-        self.kcalMin = kcalMin
-        self.kcalMax = kcalMax
+        self.kcal = kcal
+        self.isUsedInRecipes = isUsedInRecipes
         self.sources = sources
         self.sort = sort
     }
 
     /// How many filters are on; the search does not count.
     public var filterCount: Int {
-        [!aisleIDs.isEmpty, isStaple != nil, nutrition != nil, kcalMin != nil || kcalMax != nil, !sources.isEmpty]
+        [!aisleIDs.isEmpty, isStaple != nil, nutrition != nil, !kcal.isEmpty, isUsedInRecipes != nil, !sources.isEmpty]
             .filter { $0 }.count
     }
 

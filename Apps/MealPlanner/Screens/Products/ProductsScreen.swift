@@ -247,14 +247,6 @@ struct ProductsScreen: View {
     private func aisleName(_ id: Int64?) -> String {
         aisles.first { $0.id == id }?.name ?? "—"
     }
-
-    private func isPresent<Value>(_ value: Binding<Value?>) -> Binding<Bool> {
-        Binding {
-            value.wrappedValue != nil
-        } set: {
-            if !$0 { value.wrappedValue = nil }
-        }
-    }
 }
 
 extension ProductQuery.SortKey {
@@ -267,6 +259,7 @@ extension ProductQuery.SortKey {
         case .fat: "Жиры"
         case .carbs: "Углеводы"
         case .createdAt: "Дата добавления"
+        case .recipeCount: "Число рецептов"
         case .relevance: "Совпадение с поиском"
         }
     }
@@ -294,7 +287,7 @@ struct ProductOrder: SortComparator, Hashable {
             case .fat: compareValues(lhs.fat, rhs.fat)
             case .carbs: compareValues(lhs.carbs, rhs.carbs)
             case .createdAt: compareValues(lhs.createdAt, rhs.createdAt)
-            case .name, .aisle, .relevance: compareValues(lhs.nameKey, rhs.nameKey)
+            case .name, .aisle, .recipeCount, .relevance: compareValues(lhs.nameKey, rhs.nameKey)
             }
         guard order == .reverse else { return result }
         return switch result {
@@ -337,17 +330,5 @@ private struct ProductNameCell: View {
             }
         }
         .help(product.aliases.isEmpty ? "" : "Синонимы: \(product.aliases.joined(separator: ", "))")
-    }
-}
-
-private struct NumberCell: View {
-    let value: Double?
-    var digits = 1
-
-    var body: some View {
-        Text(Formatting.number(value, digits: digits))
-            .monospacedDigit()
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .foregroundStyle(value == nil ? Color(.textSecondary) : Color(.textPrimary))
     }
 }

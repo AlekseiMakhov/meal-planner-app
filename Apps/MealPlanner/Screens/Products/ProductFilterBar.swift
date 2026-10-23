@@ -16,6 +16,7 @@ struct ProductFilterBar: View {
                 Menu("Обычно есть дома") { stapleChoices }
                 Menu("КБЖУ") { nutritionChoices }
                 Button("Калорийность…") { editingCalories = true }
+                Menu("В рецептах") { recipeChoices }
                 Menu("Источник КБЖУ") { sourceToggles }
             } label: {
                 Label("Фильтр", systemImage: "line.3.horizontal.decrease")
@@ -63,8 +64,15 @@ struct ProductFilterBar: View {
                 nutritionChoices
             }
         }
-        if editingCalories || query.kcalMin != nil || query.kcalMax != nil {
-            CaloriesChip(min: $query.kcalMin, max: $query.kcalMax, isEditing: $editingCalories)
+        if editingCalories || !query.kcal.isEmpty {
+            RangeChip(title: "Ккал", range: $query.kcal, isEditing: $editingCalories)
+        }
+        if let isUsed = query.isUsedInRecipes {
+            FilterChip(title: "В рецептах", value: isUsed ? "есть" : "нет") {
+                query.isUsedInRecipes = nil
+            } options: {
+                recipeChoices
+            }
         }
         if !query.sources.isEmpty {
             FilterChip(
@@ -103,6 +111,15 @@ struct ProductFilterBar: View {
         .labelsHidden()
     }
 
+    @ViewBuilder private var recipeChoices: some View {
+        Picker("В рецептах", selection: $query.isUsedInRecipes) {
+            Text("Есть в рецептах").tag(Bool?.some(true))
+            Text("Ни в одном рецепте").tag(Bool?.some(false))
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+    }
+
     @ViewBuilder private var sourceToggles: some View {
         ForEach(NutritionSource.allCases, id: \.self) { source in
             Toggle(source.title, isOn: membership(of: source, in: \.sources))
@@ -122,12 +139,12 @@ struct ProductFilterBar: View {
             }
         }
     }
+}
 
-    /// «Молочное», «Молочное +2».
-    private func summary(_ names: [String]) -> String {
-        guard let first = names.first else { return "" }
-        return names.count == 1 ? first : "\(first) +\(names.count - 1)"
-    }
+/// «Молочное», «Молочное +2».
+func summary(_ names: [String]) -> String {
+    guard let first = names.first else { return "" }
+    return names.count == 1 ? first : "\(first) +\(names.count - 1)"
 }
 
 extension ProductQuery.NutritionState {
@@ -136,54 +153,6 @@ extension ProductQuery.NutritionState {
         case .missing: "не заполнено"
         case .needsReview: "нужно проверить"
         case .complete: "заполнено"
-        }
-    }
-}
-
-/// «Ккал: 100–300»; opens a popover with the range.
-private struct CaloriesChip: View {
-    @Binding var min: Double?
-    @Binding var max: Double?
-    @Binding var isEditing: Bool
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Button {
-                isEditing = true
-            } label: {
-                Text("\(Text("Ккал:").foregroundStyle(Color(.textSecondary))) \(value)")
-                    .lineLimit(1)
-            }
-            .buttonStyle(.plain)
-            .fixedSize()
-            .popover(isPresented: $isEditing, arrowEdge: .bottom) {
-                Form {
-                    TextField("От", value: $min, format: Formatting.decimal, prompt: Text("0"))
-                    TextField("До", value: $max, format: Formatting.decimal, prompt: Text("900"))
-                }
-                .formStyle(.grouped)
-                .frame(width: 220)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            Button("Убрать фильтр «Ккал»", systemImage: "xmark") {
-                min = nil
-                max = nil
-                isEditing = false
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.plain)
-            .imageScale(.small)
-            .foregroundStyle(Color(.textSecondary))
-        }
-        .chipBackground()
-    }
-
-    private var value: String {
-        switch (min, max) {
-        case (let min?, let max?): "\(Formatting.number(min, digits: 0))–\(Formatting.number(max, digits: 0))"
-        case (let min?, nil): "от \(Formatting.number(min, digits: 0))"
-        case (nil, let max?): "до \(Formatting.number(max, digits: 0))"
-        case (nil, nil): "любая"
         }
     }
 }

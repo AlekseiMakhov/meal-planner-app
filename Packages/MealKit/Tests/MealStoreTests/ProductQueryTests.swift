@@ -85,9 +85,9 @@ struct ProductQueryTests {
         try fixture.add("Банан", kcal: 89)
         try fixture.add("Сахар", kcal: 387)
         try fixture.add("Неизвестно")
-        #expect(try fixture.names(ProductQuery(kcalMin: 50)) == ["Банан", "Сахар"])
-        #expect(try fixture.names(ProductQuery(kcalMax: 89)) == ["Банан", "Огурец"])
-        #expect(try fixture.names(ProductQuery(kcalMin: 16, kcalMax: 100)) == ["Банан"])
+        #expect(try fixture.names(ProductQuery(kcal: ValueRange(min: 50))) == ["Банан", "Сахар"])
+        #expect(try fixture.names(ProductQuery(kcal: ValueRange(max: 89))) == ["Банан", "Огурец"])
+        #expect(try fixture.names(ProductQuery(kcal: ValueRange(min: 16, max: 100))) == ["Банан"])
     }
 
     @Test func filterBySource() throws {
@@ -107,7 +107,7 @@ struct ProductQueryTests {
         let dairy = try #require(fixture.aisles["Молочное"])
         #expect(try fixture.names(ProductQuery(text: "масло", aisleIDs: [dairy])) == ["Масло сливочное"])
         #expect(try fixture.database.products(ProductQuery(text: "масло", aisleIDs: [dairy]), limit: 10).total == 1)
-        #expect(ProductQuery(text: "масло", aisleIDs: [dairy], kcalMin: 1).filterCount == 2)
+        #expect(ProductQuery(text: "масло", aisleIDs: [dairy], kcal: ValueRange(min: 1)).filterCount == 2)
         #expect(ProductQuery(text: "масло", aisleIDs: [dairy]).withoutFilters == ProductQuery(text: "масло"))
     }
 

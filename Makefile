@@ -51,10 +51,10 @@ format:
 lint:
 	xcrun swift-format lint --strict --recursive $(SWIFT_SOURCES)
 
-# The list budget (first block under 50 ms, search and order under 100 ms on 20 000 products) is for
+# The list budget (first block under 50 ms, search and order under 100 ms on 20 000 products and 5 000 recipes) is for
 # optimized builds.
 perf:
-	MEAL_PERF=1 swift test --package-path $(PACKAGE) -c release -Xswiftc -enable-testing --filter PerformanceTests
+	MEAL_PERF=1 swift test --package-path $(PACKAGE) -c release -Xswiftc -enable-testing --filter "PerformanceTests"
 
 # Rebuilds the starting product base from Tools/seed/catalog.py. USDA is the unpacked
 # FoodData_Central_sr_legacy_food_csv_2018-04 folder from https://fdc.nal.usda.gov/download-datasets.

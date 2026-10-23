@@ -1,13 +1,17 @@
+import MealCore
 import MealStore
 import SwiftUI
 
 /// A section's screen. Sections arrive with their stages of the plan; until then the screen says when.
 struct SectionScreen: View {
     let section: AppModel.Section
+    let category: RecipeCategory.ID?
     let database: AppDatabase?
 
     var body: some View {
         switch (section, database) {
+        case (.recipes, let database?):
+            RecipesScreen(database: database, categoryID: category)
         case (.products, let database?):
             ProductsScreen(database: database)
         default:
@@ -23,11 +27,10 @@ struct SectionScreen: View {
 
     private var upcoming: String {
         switch section {
-        case .recipes: "Галерея по категориям, страница рецепта и редактор появятся на этапе 2."
         case .planner: "Сетка недели с перетаскиванием карточек появится на этапе 5."
         case .pantry: "Запасы дома появятся на этапе 4."
         case .shopping: "Список покупок появится на этапе 4, синхронизация с «Напоминаниями» — на этапе 6."
-        case .products: "База данных не открылась, поэтому продуктов не показать."
+        case .recipes, .products: "База данных не открылась, поэтому показать нечего."
         }
     }
 }

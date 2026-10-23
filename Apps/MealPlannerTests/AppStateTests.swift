@@ -36,7 +36,7 @@ struct AppStateTests {
 
     @Test func colorTokensComeFromTheAssetCatalog() {
         // A token missing from Assets.xcassets would resolve to nothing; spot-check the ones every screen uses.
-        for name in ["Canvas", "TextPrimary", "TextSecondary", "AccentColor"] {
+        for name in ["Canvas", "TextPrimary", "TextSecondary", "AccentColor", "TagGray", "TagYellow"] {
             #expect(NSColor(named: name, bundle: .main) != nil, "\(name)")
         }
     }

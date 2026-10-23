@@ -48,11 +48,15 @@ enum ProductListSQL {
         case .complete: conditions.append(complete)
         case nil: break
         }
-        if let kcalMin = query.kcalMin {
+        if let kcalMin = query.kcal.min {
             conditions.append("product.kcal >= \(kcalMin)")
         }
-        if let kcalMax = query.kcalMax {
+        if let kcalMax = query.kcal.max {
             conditions.append("product.kcal <= \(kcalMax)")
+        }
+        if let isUsed = query.isUsedInRecipes {
+            conditions.append(
+                "EXISTS (SELECT 1 FROM recipe_ingredient WHERE recipe_ingredient.productId = product.id) = \(isUsed)")
         }
         if !query.sources.isEmpty {
             conditions.append("product.nutritionSource IN \(query.sources.map(\.rawValue).sorted())")
@@ -76,6 +80,10 @@ enum ProductListSQL {
                 let column = "product.\(term.key.rawValue)"
                 terms += ["\(column) IS NULL", "\(column) \(direction)"]
             case .createdAt: terms.append("product.createdAt \(direction)")
+            case .recipeCount:
+                terms.append(
+                    "(SELECT COUNT(DISTINCT recipeId) FROM recipe_ingredient WHERE productId = product.id) \(direction)"
+                )
             case .relevance where searching: terms.append("found.matchRank \(direction)")
             case .relevance: break
             }

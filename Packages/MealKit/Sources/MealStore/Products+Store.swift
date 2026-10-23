@@ -91,17 +91,35 @@ extension AppDatabase {
             changed.updatedAt = .now
             record = ProductRecord(changed, id: product.id)
             try record.update(db)
+            // Its recipes' nutrition and search text follow the product.
+            try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: product.id, db))
             return record.product
         }
     }
 
+    /// How many recipes use the product, the trashed ones included.
+    public func recipeCount(of productID: Product.ID) throws -> Int {
+        try reader.read { db in try RecipeDerived.recipes(using: productID, db).count }
+    }
+
+    /// Refuses a product that recipes use: it has to be taken out of them, or merged into another one.
     public func deleteProduct(id: Int64) throws {
-        _ = try writer.write { db in try ProductRecord.deleteOne(db, key: id) }
+        try writer.write { db in
+            let recipes = try RecipeDerived.recipes(using: id, db).count
+            if recipes > 0 {
+                let name = try ProductRecord.fetchOne(db, key: id)?.name ?? "Продукт"
+                let count = RussianPlural.form(for: Double(recipes), one: "рецепте", few: "рецептах", many: "рецептах")
+                throw StoreError(
+                    "«\(name)» есть в \(recipes) \(count). Уберите его оттуда или объедините с другим продуктом.")
+            }
+            _ = try ProductRecord.deleteOne(db, key: id)
+        }
     }
 
     /// Folds a duplicate into the product that stays: the duplicate's name and aliases become aliases, and
     /// what the one that stays lacks — nutrition, piece weight, density, units, aisle — comes from the
-    /// duplicate. Later stages move recipes, pantry and shopping items over here too.
+    /// duplicate. Recipes that used the duplicate use the kept product; later stages move pantry and shopping
+    /// items over here too.
     @discardableResult
     public func mergeProduct(_ duplicateID: Int64, into keptID: Int64) throws -> Product {
         guard duplicateID != keptID else { throw StoreError("Продукт нельзя объединить с самим собой.") }
@@ -125,9 +143,12 @@ extension AppDatabase {
             kept.updatedAt = .now
             kept = kept.tidied()
 
+            try db.execute(
+                sql: "UPDATE recipe_ingredient SET productId = ? WHERE productId = ?", arguments: [keptID, duplicateID])
             try ProductRecord.deleteOne(db, key: duplicateID)
             let record = ProductRecord(kept, id: keptID)
             try record.update(db)
+            try RecipeDerived.refresh(db, recipeIDs: RecipeDerived.recipes(using: keptID, db))
             return record.product
         }
     }

@@ -35,6 +35,12 @@ final class AppModel {
         }
     }
 
+    /// What the sidebar has selected: a section, or one category of recipes.
+    enum SidebarItem: Hashable {
+        case section(Section)
+        case category(RecipeCategory.ID)
+    }
+
     /// Something that stops the app from working, told in the window.
     struct Problem: Identifiable {
         let id = UUID()
@@ -42,8 +48,22 @@ final class AppModel {
         let message: String
     }
 
-    var section: Section = .recipes
+    var sidebar = SidebarItem.section(.recipes)
     var problem: Problem?
+
+    /// The section on screen; a category is the recipes section showing that category.
+    var section: Section {
+        get {
+            if case .section(let section) = sidebar { section } else { .recipes }
+        }
+        set {
+            sidebar = .section(newValue)
+        }
+    }
+
+    var category: RecipeCategory.ID? {
+        if case .category(let id) = sidebar { id } else { nil }
+    }
 
     /// `~/Library/Application Support/inco.mealplanner`; a Debug build has a folder of its own.
     let dataDirectory: URL?
@@ -60,7 +80,13 @@ final class AppModel {
             return
         }
         do {
-            database = try AppDatabase.open(in: dataDirectory)
+            let database = try AppDatabase.open(in: dataDirectory)
+            self.database = database
+            // What the trash and interrupted photo saves leave behind; the window does not wait for it.
+            Task.detached(priority: .background) {
+                _ = try? database.emptyTrash()
+                _ = try? database.removeUnusedImages()
+            }
         } catch {
             problem = Problem(title: "Не открылась база данных", message: "\(error)")
         }

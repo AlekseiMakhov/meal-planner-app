@@ -90,12 +90,12 @@ flowchart LR
 | `recipe_meal_type` | recipeId, mealType | «Подходит для» — фильтр в библиотеке планировщика |
 | `recipe_ingredient` | recipeId, productId, quantity (пусто — «по вкусу»), unit, note, group («Для соуса»), optional, position | |
 | `recipe_step` | recipeId, position, text | |
-| `recipe_stats` | recipeId, kcalPer100, kcalPerServing, Б/Ж/У на порцию, totalMinutes, missingCount, unknownCount, lastCookedAt | Кеш вычисляемых значений для сортировки и фильтров (§6.3) |
+| `recipe_stats` | recipeId, titleKey, searchText, kcalPer100, kcalPerServing, Б/Ж/У на порцию, totalMinutes, isNutritionComplete | Кеш вычисляемых значений для сортировки, фильтров и поиска (§6.3). Наличие (missingCount) добавится на этапе 4, «давно не готовил» (lastCookedAt) — на этапе 5 |
 | `product` | name, nameKey, aliases, aisleId, kcal / protein / fat / carbs на 100 г, baseUnit, gramsPerPiece, density, namedUnits, isStaple, nutritionSource, sourceNote, needsReview, seedKey, searchText | staple — соль, перец, масло: важно, есть или нет, а не сколько граммов. namedUnits — вес единиц, которые знает только сам продукт: «1 зубчик чеснока = 5 г»; хранится в самой строке, отдельная таблица оказалась не нужна |
 | `aisle` | name, position | Отделы магазина: «Овощи и зелень», «Молочное и яйца», «Крупы»…; порядок — как вы ходите по магазину |
 | `pantry_item` | productId, quantity (в базовой единице; пусто у staple), updatedAt | |
 | `shopping_item` | productId или freeText, quantity, unit, reasons (для каких блюд и дней), checked, reminderID, position | |
-| `meal_type` | key, title, color, position | Завтрак, обед, ужин, перекус; можно переименовать и добавить свой |
+| `meal_type` | key, name, color, position | Завтрак, обед, ужин, перекус — заведены сразу на этапе 2, чтобы рецепт мог «подходить на» приём пищи; переименование и свои приёмы пищи — на этапе 5 |
 | `plan_entry` | date, mealType, recipeId или freeText («ужин в гостях»), servings, position, cookedAt | |
 
 Поиск, фильтры и сортировка по всем таблицам — §6.
@@ -325,7 +325,7 @@ Notion в Claude Desktop уже подключён. После этапа 3 хв
 
 ## 10. Этапы
 
-Статус на 23.10.2026: этапы 0 и 1 готовы.
+Статус на 23.10.2026: этапы 0, 1 и 2 готовы.
 
 Объём: S — до дня работы с Claude Code, M — 1–2 дня, L — 3 дня и больше.
 
@@ -354,6 +354,7 @@ Notion в Claude Desktop уже подключён. После этапа 3 хв
 - Шаги, КБЖУ на 100 г и на порцию, пересчёт порций, превью источника.
 - Поиск, фильтры и сортировки рецептов (§6.2) в галерее и в таблице КБЖУ; кеш `recipe_stats`. Фильтры по наличию заработают на этапе 4, когда появятся запасы.
 - Видео: в первый день этапа — спайк (см. §11) для YouTube, Rutube, VK Видео и произвольного iframe. Если встроить не удаётся — превью со ссылкой.
+- Сделано сверх плана: корзина рецептов на 30 дней, дубликат рецепта, фильтры продуктов «в рецептах» и сортировка по числу рецептов; `make perf` проверяет и 5 000 рецептов.
 
 **Готово, когда** «Омлет с помидорами и фетой» заводится руками за 2 минуты и выглядит как на скриншоте из Notion, а КБЖУ порции не 0. Фильтр «до 300 ккал на порцию» и сортировка по белку работают и в галерее, и в таблице.
 
@@ -401,7 +402,7 @@ Notion в Claude Desktop уже подключён. После этапа 3 хв
 
 | Риск | Что делаем |
 |---|---|
-| YouTube в WKWebView показывает «Ошибка 153»: плееру нужен Referer, а у страницы без адреса его нет | HTML с iframe грузим через `loadHTMLString` с https-адресом в `baseURL` и `referrerpolicy="strict-origin-when-cross-origin"`. В первый день этапа 2 проверяем YouTube, Rutube и VK Видео. Запасной вариант — превью (LinkPresentation) и открытие в браузере |
+| YouTube в WKWebView показывает «Ошибка 153»: плееру нужен Referer, а у страницы без адреса его нет | HTML с iframe грузим через `loadHTMLString` с https-адресом в `baseURL` и `referrerpolicy="strict-origin-when-cross-origin"`. Так и сделано на этапе 2; под каждым плеером — превью ссылки (LinkPresentation), она открывает ролик в браузере. Воспроизведение в окне ещё не проверено руками: на время проверки Mac был заблокирован |
 | Instagram и TikTok плохо встраиваются | Для них — только карточка-ссылка |
 | В «Напоминаниях» нет API для разделов | Пункты упорядочиваем по отделам; проверяем автоматическую раскладку в списке типа «Продукты» |
 | В одну базу пишут два процесса | WAL и `busyTimeout`, Darwin-уведомление и `notifyChanges`, тест параллельной записи |

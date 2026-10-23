@@ -90,13 +90,13 @@ struct PagedListTests {
         try await until(list) { $0.rows.count == 150 }
         let generation = list.generation
 
-        list.query.kcalMin = 10
+        list.query.kcal.min = 10
         try await until(list) { $0.total == 140 }
         #expect(list.rows.count == 100)
         #expect(list.limit == 100)
         #expect(list.generation == generation + 1)
 
-        list.query.kcalMin = 10
+        list.query.kcal.min = 10
         #expect(list.generation == generation + 1, "the same query changes nothing")
         list.stop()
     }
